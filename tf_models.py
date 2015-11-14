@@ -13,14 +13,14 @@ class Layer(object):
 
         with tf.name_scope(self.name):
             self.Ws = []
-            for input_size in input_sizes:
+            for input_idx, input_size in enumerate(input_sizes):
                 tensor_W = tf.random_uniform((input_size, output_size),
                                              -1.0 / math.sqrt(input_size),
                                              1.0 / math.sqrt(input_size))
-                self.Ws.append(tf.Variable(tensor_W))
+                self.Ws.append(tf.Variable(tensor_W, name="W_%d" % (input_idx,)))
 
             tensor_b = tf.zeros((output_size,))
-            self.b = tf.Variable(tensor_b)
+            self.b = tf.Variable(tensor_b, name="b")
 
     def __call__(self, xs):
         if type(xs) != list:
@@ -42,8 +42,11 @@ class MLP(object):
                 "Number of hiddens must be equal to number of nonlinearities"
 
         with tf.name_scope(self.name):
-            self.input_layer = Layer(input_sizes, hiddens[0])
-            self.layers = [Layer(h_from, h_to) for h_from, h_to in zip(hiddens[:-1], hiddens[1:])]
+            self.input_layer = Layer(input_sizes, hiddens[0], name="input_layer")
+            self.layers = []
+
+            for l_idx, (h_from, h_to) in enumerate(zip(hiddens[:-1], hiddens[1:])):
+                self.layers.append(Layer(h_from, h_to, name="hidden_layer_%d" % (l_idx,)))
 
     def __call__(self, xs):
         if type(xs) != list:
