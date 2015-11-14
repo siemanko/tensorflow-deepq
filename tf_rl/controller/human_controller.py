@@ -1,4 +1,4 @@
-from getch import getch
+from tf_rl.utils.getch import getch
 from redis import StrictRedis
 
 

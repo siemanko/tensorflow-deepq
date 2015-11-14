@@ -1,0 +1,164 @@
+<?xml version="1.0"?>
+<svg height="600" width="720" >
+ <g style="fill-opacity:1.0; stroke:black;
+  stroke-width:1;">
+  <rect x="10" y="10" height="500"
+        width="700" style="fill:none;" />
+  <line x1="396" y1="265" x2="516" y2="265" />
+  <line x1="396" y1="265" x2="514" y2="289" />
+  <line x1="396" y1="265" x2="507" y2="311" />
+  <line x1="396" y1="265" x2="496" y2="332" />
+  <line x1="396" y1="265" x2="481" y2="350" />
+  <line x1="396" y1="265" x2="463" y2="365" />
+  <line x1="396" y1="265" x2="442" y2="376" />
+  <line x1="396" y1="265" x2="420" y2="383" />
+  <line x1="396" y1="265" x2="396" y2="385" />
+  <line x1="396" y1="265" x2="373" y2="383" />
+  <line x1="396" y1="265" x2="350" y2="376" />
+  <line x1="396" y1="265" x2="329" y2="365" />
+  <line x1="396" y1="265" x2="311" y2="350" />
+  <line x1="396" y1="265" x2="296" y2="332" />
+  <line x1="396" y1="265" x2="285" y2="311" />
+  <line x1="396" y1="265" x2="278" y2="289" />
+  <line x1="396" y1="265" x2="276" y2="265" />
+  <line x1="396" y1="265" x2="278" y2="242" />
+  <line x1="396" y1="265" x2="285" y2="219" />
+  <line x1="396" y1="265" x2="296" y2="199" />
+  <line x1="396" y1="265" x2="311" y2="181" />
+  <line x1="396" y1="265" x2="329" y2="166" />
+  <line x1="396" y1="265" x2="350" y2="154" />
+  <line x1="396" y1="265" x2="373" y2="148" />
+  <line x1="396" y1="265" x2="396" y2="145" />
+  <line x1="396" y1="265" x2="420" y2="148" />
+  <line x1="396" y1="265" x2="442" y2="154" />
+  <line x1="396" y1="265" x2="463" y2="166" />
+  <line x1="396" y1="265" x2="481" y2="181" />
+  <line x1="396" y1="265" x2="496" y2="199" />
+  <line x1="396" y1="265" x2="507" y2="219" />
+  <line x1="396" y1="265" x2="514" y2="242" />
+  <circle cx="269" cy="306" r="10"
+          style="fill:red;" />
+  <circle cx="27" cy="304" r="10"
+          style="fill:red;" />
+  <circle cx="130" cy="148" r="10"
+          style="fill:red;" />
+  <circle cx="82" cy="63" r="10"
+          style="fill:red;" />
+  <circle cx="205" cy="46" r="10"
+          style="fill:red;" />
+  <circle cx="367" cy="436" r="10"
+          style="fill:red;" />
+  <circle cx="445" cy="213" r="10"
+          style="fill:red;" />
+  <circle cx="641" cy="410" r="10"
+          style="fill:red;" />
+  <circle cx="605" cy="53" r="10"
+          style="fill:red;" />
+  <circle cx="158" cy="55" r="10"
+          style="fill:red;" />
+  <circle cx="538" cy="199" r="10"
+          style="fill:red;" />
+  <circle cx="571" cy="45" r="10"
+          style="fill:red;" />
+  <circle cx="552" cy="446" r="10"
+          style="fill:red;" />
+  <circle cx="652" cy="37" r="10"
+          style="fill:red;" />
+  <circle cx="461" cy="274" r="10"
+          style="fill:red;" />
+  <circle cx="249" cy="340" r="10"
+          style="fill:red;" />
+  <circle cx="444" cy="288" r="10"
+          style="fill:red;" />
+  <circle cx="558" cy="479" r="10"
+          style="fill:red;" />
+  <circle cx="260" cy="416" r="10"
+          style="fill:red;" />
+  <circle cx="695" cy="156" r="10"
+          style="fill:red;" />
+  <circle cx="185" cy="20" r="10"
+          style="fill:red;" />
+  <circle cx="443" cy="173" r="10"
+          style="fill:red;" />
+  <circle cx="333" cy="41" r="10"
+          style="fill:red;" />
+  <circle cx="282" cy="407" r="10"
+          style="fill:red;" />
+  <circle cx="417" cy="432" r="10"
+          style="fill:red;" />
+  <circle cx="331" cy="374" r="10"
+          style="fill:green;" />
+  <circle cx="464" cy="140" r="10"
+          style="fill:green;" />
+  <circle cx="580" cy="75" r="10"
+          style="fill:green;" />
+  <circle cx="457" cy="322" r="10"
+          style="fill:green;" />
+  <circle cx="531" cy="385" r="10"
+          style="fill:green;" />
+  <circle cx="412" cy="287" r="10"
+          style="fill:green;" />
+  <circle cx="366" cy="410" r="10"
+          style="fill:green;" />
+  <circle cx="624" cy="425" r="10"
+          style="fill:green;" />
+  <circle cx="420" cy="460" r="10"
+          style="fill:green;" />
+  <circle cx="140" cy="319" r="10"
+          style="fill:green;" />
+  <circle cx="676" cy="266" r="10"
+          style="fill:green;" />
+  <circle cx="527" cy="491" r="10"
+          style="fill:green;" />
+  <circle cx="544" cy="389" r="10"
+          style="fill:green;" />
+  <circle cx="142" cy="143" r="10"
+          style="fill:green;" />
+  <circle cx="170" cy="141" r="10"
+          style="fill:green;" />
+  <circle cx="117" cy="374" r="10"
+          style="fill:green;" />
+  <circle cx="358" cy="382" r="10"
+          style="fill:green;" />
+  <circle cx="483" cy="472" r="10"
+          style="fill:green;" />
+  <circle cx="680" cy="21" r="10"
+          style="fill:green;" />
+  <circle cx="69" cy="360" r="10"
+          style="fill:green;" />
+  <circle cx="534" cy="378" r="10"
+          style="fill:green;" />
+  <circle cx="585" cy="372" r="10"
+          style="fill:green;" />
+  <circle cx="419" cy="343" r="10"
+          style="fill:green;" />
+  <circle cx="146" cy="177" r="10"
+          style="fill:green;" />
+  <circle cx="253" cy="243" r="10"
+          style="fill:green;" />
+  <circle cx="666" cy="73" r="10"
+          style="fill:orange;" />
+  <circle cx="514" cy="428" r="10"
+          style="fill:orange;" />
+  <circle cx="490" cy="486" r="10"
+          style="fill:orange;" />
+  <circle cx="192" cy="251" r="10"
+          style="fill:orange;" />
+  <circle cx="556" cy="214" r="10"
+          style="fill:orange;" />
+  <circle cx="396" cy="265" r="10"
+          style="fill:yellow;" />
+  <text x="10" y="535" font-size="15">
+   DTW        = 234.1
+  </text>
+  <text x="10" y="555" font-size="15">
+   experience = 2
+  </text>
+  <text x="10" y="575" font-size="15">
+   reward = 0.0
+  </text>
+  <text x="10" y="595" font-size="15">
+   objects eaten => 
+  </text>
+ </g>
+</svg>
