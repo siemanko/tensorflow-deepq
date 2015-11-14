@@ -25,7 +25,7 @@ def compute_style(style):
         color="none"
     style_str.append('fill:%s;' % (colorstr(color),))
 
-    style_str = 'style=%s' % (';'.join(style_str),)
+    style_str = 'style="%s"' % (';'.join(style_str),)
     return style_str
 
 class Scene:
