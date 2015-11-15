@@ -1,5 +1,6 @@
-import tensorflow as tf
+import numpy as np
 import random
+import tensorflow as tf
 
 from collections import deque
 
@@ -11,6 +12,8 @@ class DiscreteDeepQ(object):
                        session,
                        random_action_probability=0.05,
                        exploration_period=1000,
+                       store_every_nth=5,
+                       train_every_nth=5,
                        minibatch_size=32,
                        discount_rate=0.95,
                        max_experience=30000,
@@ -43,6 +46,18 @@ class DiscreteDeepQ(object):
             action (epsilon form paper) annealed linearly
             from 1 to random_action_probability over
             exploration_period
+        store_every_nth: int
+            to further decorrelate samples do not all
+            transitions, but rather every nth transition.
+            For example if store_every_nth is 5, then
+            only 20% of all the transitions is stored.
+        train_every_nth: int
+            normally training_step is invoked every
+            time action is executed. Depending on the
+            setup that might be too often. When this
+            variable is set set to n, then only every
+            n-th time training_step is called will
+            the training procedure actually be executed.
         minibatch_size: int
             number of state,action,reward,newstate
             tuples considered during experience reply
@@ -63,6 +78,8 @@ class DiscreteDeepQ(object):
 
         self.random_action_probability = random_action_probability
         self.exploration_period        = exploration_period
+        self.store_every_nth           = store_every_nth
+        self.train_every_nth           = train_every_nth
         self.minibatch_size            = minibatch_size
         self.discount_rate             = tf.constant(discount_rate)
         self.max_experience            = max_experience
@@ -73,6 +90,9 @@ class DiscreteDeepQ(object):
 
         self.iteration = 0
         self.summary_writer = summary_writer
+
+        self.number_of_times_store_called = 0
+        self.number_of_times_train_called = 0
 
         self.create_variables()
 
@@ -135,56 +155,61 @@ class DiscreteDeepQ(object):
 
         If newstate is None, the state/action pair is assumed to be terminal
         """
-        self.experience.append((observation, action, reward, newobservation))
-        if len(self.experience) > self.max_experience:
-            self.experience.popleft()
+        if self.number_of_times_store_called % self.store_every_nth == 0:
+            self.experience.append((observation, action, reward, newobservation))
+            if len(self.experience) > self.max_experience:
+                self.experience.popleft()
+        self.number_of_times_store_called += 1
 
     def training_step(self):
         """Pick a self.minibatch_size exeperiences from reply buffer
         and backpropage the value function.
         """
-        if len(self.experience) <  self.minibatch_size:
-            return
+        if self.number_of_times_train_called % self.train_every_nth == 0:
+            if len(self.experience) <  self.minibatch_size:
+                return
 
-        # sample experience.
-        samples   = random.sample(range(len(self.experience)), self.minibatch_size)
-        samples   = [self.experience[i] for i in samples]
+            # sample experience.
+            samples   = random.sample(range(len(self.experience)), self.minibatch_size)
+            samples   = [self.experience[i] for i in samples]
 
-        # bach states
-        states         = np.empty((len(samples), self.observation_size))
-        newstates      = np.empty((len(samples), self.observation_size))
-        action_mask    = np.zeros((len(samples), self.num_actions))
+            # bach states
+            states         = np.empty((len(samples), self.observation_size))
+            newstates      = np.empty((len(samples), self.observation_size))
+            action_mask    = np.zeros((len(samples), self.num_actions))
 
-        newstates_mask = np.empty((len(samples),))
-        rewards        = np.empty((len(samples),))
+            newstates_mask = np.empty((len(samples),))
+            rewards        = np.empty((len(samples),))
 
-        for i, (state, action, reward, newstate) in enumerate(samples):
-            states[i] = state
-            action_mask[i] = 0
-            action_mask[i][action] = 1
-            rewards[i] = reward
-            if newstate is not None:
-                newstates[i] = state
-                newstates_mask[i] = 1
-            else:
-                newstates[i] = 0
-                newstates_mask[i] = 0
+            for i, (state, action, reward, newstate) in enumerate(samples):
+                states[i] = state
+                action_mask[i] = 0
+                action_mask[i][action] = 1
+                rewards[i] = reward
+                if newstate is not None:
+                    newstates[i] = state
+                    newstates_mask[i] = 1
+                else:
+                    newstates[i] = 0
+                    newstates_mask[i] = 0
 
 
-        future_rewards = self.s.run(self.future_rewards, {
-            self.observation:      newstates,
-            self.observation_mask: newstates_mask,
-            self.rewards:          rewards,
-        })
+            future_rewards = self.s.run(self.future_rewards, {
+                self.observation:      newstates,
+                self.observation_mask: newstates_mask,
+                self.rewards:          rewards,
+            })
 
-        res = self.s.run([self.prediction_error, self.train_op] + self.metrics, {
-            self.observation:                states,
-            self.action_mask:                action_mask,
-            self.precomputed_future_rewards: future_rewards,
-        })
-        cost, metrics = res[0], res[2:]
+            res = self.s.run([self.prediction_error, self.train_op] + self.metrics, {
+                self.observation:                states,
+                self.action_mask:                action_mask,
+                self.precomputed_future_rewards: future_rewards,
+            })
+            cost, metrics = res[0], res[2:]
 
-        if self.summary_writer is not None:
-            for metric in metrics:
-                self.summary_writer.add_summary(metric, self.iteration)
-        self.iteration += 1
+            if self.summary_writer is not None:
+                for metric in metrics:
+                    self.summary_writer.add_summary(metric, self.iteration)
+            self.iteration += 1
+
+        self.number_of_times_train_called += 1

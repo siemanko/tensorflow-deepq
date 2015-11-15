@@ -12,8 +12,6 @@ def simulate(game,
              actions_per_game_second=60,
              simulation_resultion=0.001,
              speed=1.0,
-             store_every_nth=5,
-             train_every_nth=5,
              save_path=None):
     """Start the simulation. Performs three tasks
 
@@ -62,7 +60,6 @@ def simulate(game,
     ctrl_s = {
         'last_observation': None,
         'last_action':      None,
-        'actions_so_far':   0,
     }
 
     def control():
@@ -70,18 +67,20 @@ def simulate(game,
         new_observation = game.observe()
         reward          = game.collect_reward()
         # store last transition
-        ctrl_s['actions_so_far'] += 1
-        if ctrl_s['last_observation'] is not None and ctrl_s['actions_so_far'] % store_every_nth == 0:
-            controller.store(ctrl_s['last_observation'], ctrl_s['last_action'], reward, new_observation)
+        controller.store(ctrl_s['last_observation'], ctrl_s['last_action'], reward, new_observation)
+
         # act
         new_action = controller.action(new_observation)
         game.perform_action(new_action)
+
+        #train
+        controller.training_step()
+
+        # update current state as last state.
         ctrl_s['last_action'] = new_action
         ctrl_s['last_observation'] = new_observation
 
-        #train
-        if  ctrl_s['last_observation'] is not None and ctrl_s['actions_so_far'] % train_every_nth == 0:
-            controller.training_step()
+
 
     ##### SIMULATION
     sim_s = {
