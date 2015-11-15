@@ -120,9 +120,9 @@ class DiscreteDeepQ(object):
 
         with tf.name_scope("q_value_precition"):
             # FOR PREDICTION ERROR
-            self.action_mask                = tf.placeholder(tf.float32, (None, self.num_actions))
+            self.action_mask                = tf.placeholder(tf.float32, (None, self.num_actions), name="action_mask")
             self.masked_action_scores       = tf.reduce_sum(self.action_scores * self.action_mask, reduction_indices=[1,])
-            self.precomputed_future_rewards = tf.placeholder(tf.float32, (None,))
+            self.precomputed_future_rewards = tf.placeholder(tf.float32, (None,), "precomputed_rewards")
             temp_diff                       = self.masked_action_scores - self.precomputed_future_rewards
             self.prediction_error           = tf.reduce_mean(tf.square(temp_diff))
             self.train_op                   = self.optimizer.minimize(self.prediction_error)
