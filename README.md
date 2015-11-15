@@ -8,6 +8,11 @@ Check out Karpathy game in `notebooks` folder.
 
 *The image above depicts a strategy learned by the DeepQ controller. Available actions are accelerating top, bottom, left or right. The reward signal is +1 for the green fellas, -1 for red and -5 for orange.*
 
+## Requirements
+
+- `future==0.15.2`
+- `euclid==0.1`
+
 ## How does this all fit together.
 
 `tf_rl` has controllers and simulators which can be pieced together using simulate function.
