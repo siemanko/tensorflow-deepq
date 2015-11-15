@@ -6,24 +6,43 @@ from os import makedirs
 
 from tf_rl.utils.event_queue import EventQueue
 
-def simulate(game,
+def simulate(simulation,
              controller,
              fps=60,
-             actions_per_game_second=60,
+             actions_per_simulation_second=60,
              simulation_resultion=0.001,
              speed=1.0,
              save_path=None):
     """Start the simulation. Performs three tasks
 
         - visualizes simulation in iPython notebook
-        - advances game simulator state
+        - advances simulator state
         - reports state to controller and chooses actions
           to be performed.
+
+    Parameters
+    -------
+    simulation: tr_lr.simulation
+        simulation that will be simulated ;-)
+    controller: tr_lr.controller
+        controller used
+    fps: int
+        frames per seconds to display;
+        decrease for faster training.
+    actions_per_simulation_second: int
+        how many times perform_action is called per
+        one second of simulation time
+    speed: float
+        executed <speed> seconds of simulation time
+        per every second of real time
+    save_path: str
+        save svg visualization (only tl_rl.utils.svg
+        supported for the moment)
     """
     eq = EventQueue()
 
     time_between_frames  = 1.0 / fps
-    game_time_between_actions = 1.0 / actions_per_game_second
+    simulation_time_between_actions = 1.0 / actions_per_simulation_second
 
     simulation_resultion /= speed
 
@@ -37,14 +56,9 @@ def simulate(game,
 
     ###### VISUALIZATION
     def visualize():
-        recent_reward = game.collected_rewards[-100:] + [0]
-        objects_eaten_str = ', '.join(["%s: %s" % (o,c) for o,c in game.objects_eaten.items()])
         clear_output(wait=True)
-        svg_html = game.to_html([
-            "DTW        = %.1f" % (game.distance_to_walls(),),
+        svg_html = simulation.to_html([
             "experience = %d" % (len(controller.experience),),
-            "reward = %.1f" % (sum(recent_reward)/len(recent_reward),),
-            "objects eaten => %s" % (objects_eaten_str,),
         ])
         display(svg_html)
         if save_path is not None:
@@ -64,14 +78,14 @@ def simulate(game,
 
     def control():
         # sense
-        new_observation = game.observe()
-        reward          = game.collect_reward()
+        new_observation = simulation.observe()
+        reward          = simulation.collect_reward()
         # store last transition
         controller.store(ctrl_s['last_observation'], ctrl_s['last_action'], reward, new_observation)
 
         # act
         new_action = controller.action(new_observation)
-        game.perform_action(new_action)
+        simulation.perform_action(new_action)
 
         #train
         controller.training_step()
@@ -85,17 +99,17 @@ def simulate(game,
     ##### SIMULATION
     sim_s = {
         'simulated_up_to':             time.time(),
-        'game_time_since_last_action': 0,
+        'simulation_time_since_last_action': 0,
     }
-    def simulate_game():
+    def advance_simulation():
         while sim_s['simulated_up_to'] < time.time():
-            game.step(simulation_resultion)
+            simulation.step(simulation_resultion)
             sim_s['simulated_up_to'] += simulation_resultion / speed
-            sim_s['game_time_since_last_action'] += simulation_resultion
-            if sim_s['game_time_since_last_action'] > game_time_between_actions:
+            sim_s['simulation_time_since_last_action'] += simulation_resultion
+            if sim_s['simulation_time_since_last_action'] > simulation_time_between_actions:
                 control()
-                sim_s['game_time_since_last_action'] = 0
+                sim_s['simulation_time_since_last_action'] = 0
 
-    eq.schedule_recurring(simulate_game, time_between_frames)
+    eq.schedule_recurring(advance_simulation, time_between_frames)
 
     eq.run()

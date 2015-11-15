@@ -262,6 +262,16 @@ class KarpathyGame(object):
 
     def to_html(self, stats=[]):
         """Return svg representation of the simulator"""
+
+        stats = stats[:]
+        recent_reward = self.collected_rewards[-100:] + [0]
+        objects_eaten_str = ', '.join(["%s: %s" % (o,c) for o,c in self.objects_eaten.items()])
+        stats.extend([
+            "nearest wall = %.1f" % (self.distance_to_walls(),),
+            "reward       = %.1f" % (sum(recent_reward)/len(recent_reward),),
+            "objects eaten => %s" % (objects_eaten_str,),
+        ])
+
         scene = svg.Scene((self.size[0] + 20, self.size[1] + 20 + 20 * len(stats)))
         scene.add(svg.Rectangle((10, 10), self.size))
 
