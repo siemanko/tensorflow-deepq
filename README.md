@@ -38,8 +38,8 @@ To write your own simulation define a simulation class with 4 functions:
 - `observe(self)` returns a current observation
 - `collect_reward(self)` returns the reward accumulated since the last time function was called.
 - `perform_action(self, action)` updates internal state to reflect the fact that `aciton` was executed
-- `game.step(self, dt)` update internal state as if `dt` of simulation time has passed.
-- `game.to_html(self, info=[])` generate an html visualization of the game. `info` can be optionally passed an has a list of strings that should be displayed along with the visualization
+- `step(self, dt)` update internal state as if `dt` of simulation time has passed.
+- `to_html(self, info=[])` generate an html visualization of the game. `info` can be optionally passed an has a list of strings that should be displayed along with the visualization
 
 
 
