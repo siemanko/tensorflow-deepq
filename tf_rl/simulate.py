@@ -7,7 +7,7 @@ from os import makedirs
 from tf_rl.utils.event_queue import EventQueue
 
 def simulate(simulation,
-             controller,
+             controller = None,
              fps=60,
              actions_per_simulation_second=60,
              simulation_resultion=0.001,
@@ -57,9 +57,7 @@ def simulate(simulation,
     ###### VISUALIZATION
     def visualize():
         clear_output(wait=True)
-        svg_html = simulation.to_html([
-            "experience = %d" % (len(controller.experience),),
-        ])
+        svg_html = simulation.to_html()
         display(svg_html)
         if save_path is not None:
             img_path = join(save_path, "%d.svg" % (vis_s['last_image'],))
@@ -107,8 +105,9 @@ def simulate(simulation,
             sim_s['simulated_up_to'] += simulation_resultion / speed
             sim_s['simulation_time_since_last_action'] += simulation_resultion
             if sim_s['simulation_time_since_last_action'] > simulation_time_between_actions:
-                control()
-                sim_s['simulation_time_since_last_action'] = 0
+                if controller is not None:
+                    control()
+                    sim_s['simulation_time_since_last_action'] = 0
 
     eq.schedule_recurring(advance_simulation, time_between_frames)
 
