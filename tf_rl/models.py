@@ -1,8 +1,11 @@
 import math
 import tensorflow as tf
 
+from .utils import copy_variables
+
+
 class Layer(object):
-    def __init__(self, input_sizes, output_size, name='Layer'):
+    def __init__(self, input_sizes, output_size, name='Layer', given_variables={}):
         """Cretes a neural network layer."""
         if type(input_sizes) != list:
             input_sizes = [input_sizes]
@@ -14,13 +17,19 @@ class Layer(object):
         with tf.name_scope(self.name):
             self.Ws = []
             for input_idx, input_size in enumerate(input_sizes):
-                tensor_W = tf.random_uniform((input_size, output_size),
-                                             -1.0 / math.sqrt(input_size),
-                                             1.0 / math.sqrt(input_size))
-                self.Ws.append(tf.Variable(tensor_W, name="W_%d" % (input_idx,)))
-
-            tensor_b = tf.zeros((output_size,))
-            self.b = tf.Variable(tensor_b, name="b")
+                W_name = "W_%d" % (input_idx,)
+                if W_name in given_variables:
+                    self.Ws.append(given_variables[W_name])
+                else:
+                    W_tensor = tf.random_uniform((input_size, output_size),
+                                                 -1.0 / math.sqrt(input_size),
+                                                 1.0 / math.sqrt(input_size))
+                    self.Ws.append(tf.Variable(W_tensor, name=W_name))
+            if "b" in given_variables:
+                self.b = given_variables["b"]
+            else:
+                b_tensor = tf.zeros((output_size,))
+                self.b = tf.Variable(b_tensor, name="b")
 
     def __call__(self, xs):
         if type(xs) != list:
@@ -33,14 +42,13 @@ class Layer(object):
     def variables(self):
         return [self.b] + self.Ws
 
-    def copy(self, session, name=None):
-        ret = Layer(self.input_sizes, self.output_size, name)
-        for v_source, v_target in zip(self.variables(), ret.variables()):
-            session.run(v_target.assign(v_source))
-        return ret
+    def copy(self, name=None):
+        name = name or self.name
+        return Layer(self.input_sizes, self.output_size, name,
+                given_variables=copy_variables(self.variables()))
 
 class MLP(object):
-    def __init__(self, input_sizes, hiddens, nonlinearities, name="MLP"):
+    def __init__(self, input_sizes, hiddens, nonlinearities, name="MLP", given_layers=None):
         self.input_sizes = input_sizes
         self.hiddens = hiddens
         self.input_nonlinearity, self.layer_nonlinearities = nonlinearities[0], nonlinearities[1:]
@@ -50,11 +58,15 @@ class MLP(object):
                 "Number of hiddens must be equal to number of nonlinearities"
 
         with tf.name_scope(self.name):
-            self.input_layer = Layer(input_sizes, hiddens[0], name="input_layer")
-            self.layers = []
+            if given_layers is not None:
+                self.input_layer = given_layers[0]
+                self.layers      = given_layers[1:]
+            else:
+                self.input_layer = Layer(input_sizes, hiddens[0], name="input_layer")
+                self.layers = []
 
-            for l_idx, (h_from, h_to) in enumerate(zip(hiddens[:-1], hiddens[1:])):
-                self.layers.append(Layer(h_from, h_to, name="hidden_layer_%d" % (l_idx,)))
+                for l_idx, (h_from, h_to) in enumerate(zip(hiddens[:-1], hiddens[1:])):
+                    self.layers.append(Layer(h_from, h_to, name="hidden_layer_%d" % (l_idx,)))
 
     def __call__(self, xs):
         if type(xs) != list:
@@ -71,9 +83,9 @@ class MLP(object):
             res.extend(layer.variables())
         return res
 
-    def copy(self, session, name=None):
+    def copy(self, name=None):
+        name = name or self.name
         nonlinearities = [self.input_nonlinearity] + self.layer_nonlinearities
-        ret = MLP(self.input_sizes, self.hiddens, nonlinearities, name)
-        for v_source, v_target in zip(self.variables(), ret.variables()):
-            session.run(v_target.assign(v_source))
-        return ret
+        given_layers = [self.input_layer.copy()] + [layer.copy() for layer in self.layers]
+        return MLP(self.input_sizes, self.hiddens, nonlinearities, name=name,
+                given_layers=given_layers)

@@ -17,6 +17,7 @@ class DiscreteDeepQ(object):
                        minibatch_size=32,
                        discount_rate=0.95,
                        max_experience=30000,
+                       target_network_update_rate=0.01,
                        summary_writer=None):
         """Initialized the Deepq object.
 
@@ -65,6 +66,12 @@ class DiscreteDeepQ(object):
             how much we care about future rewards.
         max_experience: int
             maximum size of the reply buffer
+        target_network_update_rate: float
+            how much to update target network after each
+            iteration. Let's call target_network_update_rate
+            alpha, target network T, and network N. Every
+            time N gets updated we execute:
+                T = (1-alpha)*T + alpha*N
         summary_writer: tf.train.SummaryWriter
             writer to log metrics
         """
@@ -83,6 +90,8 @@ class DiscreteDeepQ(object):
         self.minibatch_size            = minibatch_size
         self.discount_rate             = tf.constant(discount_rate)
         self.max_experience            = max_experience
+        self.target_network_update_rate = \
+                tf.constant(target_network_update_rate)
 
         # deepq state
         self.actions_executed_so_far = 0
@@ -105,13 +114,13 @@ class DiscreteDeepQ(object):
             return p_initial - (n * (p_initial - p_final)) / (total)
 
     def create_variables(self):
-        self.s.run(tf.initialize_variables(self.q_network.variables()))
-        self.target_q_network    = self.q_network.copy(self.s, name="target_network")
+        self.target_q_network    = self.q_network.copy(name="target_network")
 
         # FOR REGULAR ACTION SCORE COMPUTATION
         with tf.name_scope("taking_action"):
             self.observation        = tf.placeholder(tf.float32, (None, self.observation_size), name="observation")
             self.action_scores      = tf.identity(self.q_network(self.observation), name="action_scores")
+            tf.histogram_summary("action_scores", self.action_scores)
             self.predicted_actions  = tf.argmax(self.action_scores, dimension=1, name="predicted_actions")
 
         with tf.name_scope("estimating_future_rewards"):
@@ -119,6 +128,7 @@ class DiscreteDeepQ(object):
             self.next_observation          = tf.placeholder(tf.float32, (None, self.observation_size), name="next_observation")
             self.next_observation_mask     = tf.placeholder(tf.float32, (None,), name="next_observation_mask")
             self.next_action_scores        = tf.stop_gradient(self.target_q_network(self.next_observation))
+            tf.histogram_summary("target_action_scores", self.next_action_scores)
             self.rewards                   = tf.placeholder(tf.float32, (None,), name="rewards")
             target_values                  = tf.reduce_max(self.next_action_scores, reduction_indices=[1,]) * self.next_observation_mask
             self.future_rewards            = self.rewards + self.discount_rate * target_values
@@ -129,19 +139,27 @@ class DiscreteDeepQ(object):
             self.masked_action_scores       = tf.reduce_sum(self.action_scores * self.action_mask, reduction_indices=[1,])
             temp_diff                       = self.masked_action_scores - self.future_rewards
             self.prediction_error           = tf.reduce_mean(tf.square(temp_diff))
-            self.train_op                   = self.optimizer.minimize(self.prediction_error)
+            gradients                       = self.optimizer.compute_gradients(self.prediction_error)
+            # Add histograms for gradients.
+            for grad, var in gradients:
+                tf.histogram_summary(var.name, var)
+                if grad:
+                    tf.histogram_summary(var.name + '/gradients', grad)
+            self.train_op                   = self.optimizer.apply_gradients(gradients)
 
         # UPDATE TARGET NETWORK
         with tf.name_scope("target_network_update"):
             self.target_network_update = []
             for v_source, v_target in zip(self.q_network.variables(), self.target_q_network.variables()):
-                self.target_network_update.append(v_target.assign(v_source))
+                # this is equivalent to target = (1-alpha) * target + alpha * source
+                update_op = v_target.assign_sub(self.target_network_update_rate * (v_target - v_source))
+                self.target_network_update.append(update_op)
             self.target_network_update = tf.group(*self.target_network_update)
 
-        # METRICS
-        self.metrics = [
-            tf.scalar_summary("prediction_error", self.prediction_error)
-        ]
+        # summaries
+        tf.scalar_summary("prediction_error", self.prediction_error)
+
+        self.summarize = tf.merge_all_summaries()
 
     def action(self, observation):
         """Given observation returns the action that should be chosen using
@@ -205,20 +223,25 @@ class DiscreteDeepQ(object):
                     newstates[i] = 0
                     newstates_mask[i] = 0
 
-            res = self.s.run([self.prediction_error, self.train_op] + self.metrics, {
+            please_evaluate = [
+                self.prediction_error,
+                self.train_op,
+            ]
+            if self.iteration % 100 == 0:
+                please_evaluate.append(self.summarize)
+            results = self.s.run(please_evaluate, {
                 self.observation:            states,
                 self.next_observation:       newstates,
                 self.next_observation_mask:  newstates_mask,
                 self.action_mask:            action_mask,
                 self.rewards:                rewards,
             })
-            cost, metrics = res[0], res[2:]
-
-            if self.summary_writer is not None:
-                for metric in metrics:
-                    self.summary_writer.add_summary(metric, self.iteration)
 
             self.s.run(self.target_network_update)
+
+            if self.summary_writer is not None and self.iteration % 100 == 0:
+                self.summary_writer.add_summary(results[-1], self.iteration)
+
             self.iteration += 1
 
         self.number_of_times_train_called += 1
