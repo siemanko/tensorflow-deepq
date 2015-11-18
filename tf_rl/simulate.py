@@ -79,7 +79,8 @@ def simulate(simulation,
         new_observation = simulation.observe()
         reward          = simulation.collect_reward()
         # store last transition
-        controller.store(ctrl_s['last_observation'], ctrl_s['last_action'], reward, new_observation)
+        if ctrl_s['last_observation'] is not None:
+            controller.store(ctrl_s['last_observation'], ctrl_s['last_action'], reward, new_observation)
 
         # act
         new_action = controller.action(new_observation)
