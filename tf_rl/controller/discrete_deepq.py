@@ -223,13 +223,11 @@ class DiscreteDeepQ(object):
                     newstates[i] = 0
                     newstates_mask[i] = 0
 
-            please_evaluate = [
+            cost, _, summary_str = self.s.run([
                 self.prediction_error,
                 self.train_op,
-            ]
-            if self.iteration % 100 == 0:
-                please_evaluate.append(self.summarize)
-            results = self.s.run(please_evaluate, {
+                self.summarize if self.iteration % 100 == 0 else tf.no_op(),
+            ], {
                 self.observation:            states,
                 self.next_observation:       newstates,
                 self.next_observation_mask:  newstates_mask,
@@ -239,8 +237,8 @@ class DiscreteDeepQ(object):
 
             self.s.run(self.target_network_update)
 
-            if self.summary_writer is not None and self.iteration % 100 == 0:
-                self.summary_writer.add_summary(results[-1], self.iteration)
+            if self.summary_writer is not None and summary_str is not None:
+                self.summary_writer.add_summary(summary_str, self.iteration)
 
             self.iteration += 1
 
