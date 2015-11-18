@@ -72,7 +72,7 @@ class DiscreteDeepQ(object):
         self.observation_size          = observation_size
         self.num_actions               = num_actions
 
-        self.observation_to_actions    = observation_to_actions
+        self.q_network                 = observation_to_actions
         self.optimizer                 = optimizer
         self.s                         = session
 
@@ -105,28 +105,40 @@ class DiscreteDeepQ(object):
             return p_initial - (n * (p_initial - p_final)) / (total)
 
     def create_variables(self):
+        self.s.run(tf.initialize_variables(self.q_network.variables()))
+        self.target_q_network    = self.q_network.copy(self.s, name="target_network")
+
         # FOR REGULAR ACTION SCORE COMPUTATION
-        with tf.name_scope("observation"):
+        with tf.name_scope("taking_action"):
             self.observation        = tf.placeholder(tf.float32, (None, self.observation_size), name="observation")
-            self.action_scores      = self.observation_to_actions(self.observation)
+            self.action_scores      = tf.identity(self.q_network(self.observation), name="action_scores")
             self.predicted_actions  = tf.argmax(self.action_scores, dimension=1, name="predicted_actions")
 
-        with tf.name_scope("future_rewards"):
+        with tf.name_scope("estimating_future_rewards"):
             # FOR PREDICTING TARGET FUTURE REWARDS
-            self.observation_mask     = tf.placeholder(tf.float32, (None,), name="observation_mask")
-            self.rewards              = tf.placeholder(tf.float32, (None,), name="rewards")
-            target_values             = tf.reduce_max(self.action_scores, reduction_indices=[1,]) * self.observation_mask
-            self.future_rewards       = self.rewards + self.discount_rate * target_values
+            self.next_observation          = tf.placeholder(tf.float32, (None, self.observation_size), name="next_observation")
+            self.next_observation_mask     = tf.placeholder(tf.float32, (None,), name="next_observation_mask")
+            self.next_action_scores        = tf.stop_gradient(self.target_q_network(self.next_observation))
+            self.rewards                   = tf.placeholder(tf.float32, (None,), name="rewards")
+            target_values                  = tf.reduce_max(self.next_action_scores, reduction_indices=[1,]) * self.next_observation_mask
+            self.future_rewards            = self.rewards + self.discount_rate * target_values
 
         with tf.name_scope("q_value_precition"):
             # FOR PREDICTION ERROR
             self.action_mask                = tf.placeholder(tf.float32, (None, self.num_actions), name="action_mask")
             self.masked_action_scores       = tf.reduce_sum(self.action_scores * self.action_mask, reduction_indices=[1,])
-            self.precomputed_future_rewards = tf.placeholder(tf.float32, (None,), "precomputed_rewards")
-            temp_diff                       = self.masked_action_scores - self.precomputed_future_rewards
+            temp_diff                       = self.masked_action_scores - self.future_rewards
             self.prediction_error           = tf.reduce_mean(tf.square(temp_diff))
             self.train_op                   = self.optimizer.minimize(self.prediction_error)
 
+        # UPDATE TARGET NETWORK
+        with tf.name_scope("target_network_update"):
+            self.target_network_update = []
+            for v_source, v_target in zip(self.q_network.variables(), self.target_q_network.variables()):
+                self.target_network_update.append(v_target.assign(v_source))
+            self.target_network_update = tf.group(*self.target_network_update)
+
+        # METRICS
         self.metrics = [
             tf.scalar_summary("prediction_error", self.prediction_error)
         ]
@@ -150,7 +162,7 @@ class DiscreteDeepQ(object):
 
     def store(self, observation, action, reward, newobservation):
         """Store experience, where starting with observation and
-        execution action, we arrived at the newobservation and got the
+        execution action, we arrived at the newobservation and got thetarget_network_update
         reward reward
 
         If newstate is None, the state/action pair is assumed to be terminal
@@ -193,23 +205,20 @@ class DiscreteDeepQ(object):
                     newstates[i] = 0
                     newstates_mask[i] = 0
 
-
-            future_rewards = self.s.run(self.future_rewards, {
-                self.observation:      newstates,
-                self.observation_mask: newstates_mask,
-                self.rewards:          rewards,
-            })
-
             res = self.s.run([self.prediction_error, self.train_op] + self.metrics, {
-                self.observation:                states,
-                self.action_mask:                action_mask,
-                self.precomputed_future_rewards: future_rewards,
+                self.observation:            states,
+                self.next_observation:       newstates,
+                self.next_observation_mask:  newstates_mask,
+                self.action_mask:            action_mask,
+                self.rewards:                rewards,
             })
             cost, metrics = res[0], res[2:]
 
             if self.summary_writer is not None:
                 for metric in metrics:
                     self.summary_writer.add_summary(metric, self.iteration)
+
+            self.s.run(self.target_network_update)
             self.iteration += 1
 
         self.number_of_times_train_called += 1
