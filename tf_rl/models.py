@@ -30,6 +30,14 @@ class Layer(object):
         with tf.name_scope(self.name):
             return sum([tf.matmul(x, W) for x, W in zip(xs, self.Ws)]) + self.b
 
+    def variables(self):
+        return [self.b] + self.Ws
+
+    def copy(self, session, name=None):
+        ret = Layer(self.input_sizes, self.output_size, name)
+        for v_source, v_target in zip(self.variables(), ret.variables()):
+            session.run(v_target.assign(v_source))
+        return ret
 
 class MLP(object):
     def __init__(self, input_sizes, hiddens, nonlinearities, name="MLP"):
@@ -56,3 +64,16 @@ class MLP(object):
             for layer, nonlinearity in zip(self.layers, self.layer_nonlinearities):
                 hidden = nonlinearity(layer(hidden))
             return hidden
+
+    def variables(self):
+        res = self.input_layer.variables()
+        for layer in self.layers:
+            res.extend(layer.variables())
+        return res
+
+    def copy(self, session, name=None):
+        nonlinearities = [self.input_nonlinearity] + self.layer_nonlinearities
+        ret = MLP(self.input_sizes, self.hiddens, nonlinearities, name)
+        for v_source, v_target in zip(self.variables(), ret.variables()):
+            session.run(v_target.assign(v_source))
+        return ret
