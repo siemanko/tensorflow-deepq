@@ -12,6 +12,7 @@ def simulate(simulation,
              actions_per_simulation_second=60,
              simulation_resultion=0.001,
              speed=1.0,
+             disable_training=False,
              save_path=None):
     """Start the simulation. Performs three tasks
 
@@ -35,6 +36,8 @@ def simulate(simulation,
     speed: float
         executed <speed> seconds of simulation time
         per every second of real time
+    disable_training: bool
+        if true training_step is never called.
     save_path: str
         save svg visualization (only tl_rl.utils.svg
         supported for the moment)
@@ -87,7 +90,8 @@ def simulate(simulation,
         simulation.perform_action(new_action)
 
         #train
-        controller.training_step()
+        if not disable_training:
+            controller.training_step()
 
         # update current state as last state.
         ctrl_s['last_action'] = new_action

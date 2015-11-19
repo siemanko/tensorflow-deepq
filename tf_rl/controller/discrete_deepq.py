@@ -114,7 +114,7 @@ class DiscreteDeepQ(object):
             return p_initial - (n * (p_initial - p_final)) / (total)
 
     def create_variables(self):
-        self.target_q_network    = self.q_network.copy(name="target_network")
+        self.target_q_network    = self.q_network.copy(scope="target_network")
 
         # FOR REGULAR ACTION SCORE COMPUTATION
         with tf.name_scope("taking_action"):
