@@ -160,6 +160,7 @@ class DiscreteDeepQ(object):
         tf.scalar_summary("prediction_error", self.prediction_error)
 
         self.summarize = tf.merge_all_summaries()
+        self.no_op1    = tf.no_op()
 
     def action(self, observation):
         """Given observation returns the action that should be chosen using
@@ -223,10 +224,14 @@ class DiscreteDeepQ(object):
                     newstates[i] = 0
                     newstates_mask[i] = 0
 
+
+            calculate_summaries = False#self.iteration % 100 == 0 and \
+                    #self.summary_writer is not None
+
             cost, _, summary_str = self.s.run([
                 self.prediction_error,
                 self.train_op,
-                self.summarize if self.iteration % 100 == 0 else tf.no_op(),
+                self.summarize if calculate_summaries else self.no_op1,
             ], {
                 self.observation:            states,
                 self.next_observation:       newstates,
@@ -237,7 +242,7 @@ class DiscreteDeepQ(object):
 
             self.s.run(self.target_network_update)
 
-            if self.summary_writer is not None and summary_str is not None:
+            if calculate_summaries:
                 self.summary_writer.add_summary(summary_str, self.iteration)
 
             self.iteration += 1
