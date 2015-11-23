@@ -140,8 +140,9 @@ class DiscreteDeepQ(object):
             temp_diff                       = self.masked_action_scores - self.future_rewards
             self.prediction_error           = tf.reduce_mean(tf.square(temp_diff))
             gradients                       = self.optimizer.compute_gradients(self.prediction_error)
-            for i in range(len(gradients)):
-                gradients[i] = tf.clip_by_norm(gradients[i], 5)
+            for i, (grad, var) in enumerate(gradients):
+                if grad is not None:
+                    gradients[i] = (tf.clip_by_norm(grad, 5), var)
             # Add histograms for gradients.
             for grad, var in gradients:
                 tf.histogram_summary(var.name, var)
