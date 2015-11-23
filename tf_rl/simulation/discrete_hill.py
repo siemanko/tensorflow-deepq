@@ -8,8 +8,12 @@ class DiscreteHill(object):
 
     def __init__(self, board=(10,10), variance=4.):
         self.variance = variance
-        self.target   = (randint(-board[0], board[0]), randint(-board[1], board[1]))
-        self.position = (randint(-board[0], board[0]), randint(-board[1], board[1]))
+        self.target = (0,0)
+        while self.target == (0,0):
+            self.target   = (randint(-board[0], board[0]), randint(-board[1], board[1]))
+        self.position = (0,0)
+
+        self.shortest_path = self.distance(self.position, self.target)
 
     @staticmethod
     def add(p, q):
