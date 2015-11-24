@@ -221,7 +221,7 @@ class DiscreteDeepQ(object):
                 action_mask[i][action] = 1
                 rewards[i] = reward
                 if newstate is not None:
-                    newstates[i] = state
+                    newstates[i] = newstate
                     newstates_mask[i] = 1
                 else:
                     newstates[i] = 0
