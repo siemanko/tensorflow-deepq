@@ -83,7 +83,8 @@ class MLP(object):
 
     def copy(self, scope=None):
         scope = scope or self.scope + "_copy"
-        nonlinearities = [self.input_nonlinearity] + self.layer_nonlinearities
-        given_layers = [self.input_layer.copy()] + [layer.copy() for layer in self.layers]
-        return MLP(self.input_sizes, self.hiddens, nonlinearities, scope=scope,
-                given_layers=given_layers)
+        with tf.variable_scope(scope):
+            nonlinearities = [self.input_nonlinearity] + self.layer_nonlinearities
+            given_layers = [self.input_layer.copy()] + [layer.copy() for layer in self.layers]
+            return MLP(self.input_sizes, self.hiddens, nonlinearities, scope=scope,
+                    given_layers=given_layers)

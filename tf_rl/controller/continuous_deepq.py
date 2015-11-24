@@ -4,21 +4,22 @@ import tensorflow as tf
 
 from collections import deque
 
-class DiscreteDeepQ(object):
+class ContinuousDeepQ(object):
     def __init__(self, observation_size,
-                       num_actions,
+                       action_size,
                        actor,
                        critic,
                        optimizer,
                        session,
-                       random_action_probability=0.05,
+                       exploration_sigma=0.05,
                        exploration_period=1000,
                        store_every_nth=5,
                        train_every_nth=5,
                        minibatch_size=32,
                        discount_rate=0.95,
                        max_experience=30000,
-                       target_network_update_rate=0.01,
+                       target_actor_update_rate=0.01,
+                       target_critic_update_rate=0.01,
                        summary_writer=None):
         """Initialized the Deepq object.
 
@@ -29,24 +30,24 @@ class DiscreteDeepQ(object):
         -------
         observation_size : int
             length of the vector passed as observation
-        num_actions : int
-            number of actions that the model can execute
+        action_size : int
+            length of the vector representing an action
         observation_to_actions: dali model
             model that implements activate function
             that can take in observation vector or a batch
             and returns scores (of unbounded values) for each
             action for each observation.
             input shape:  [batch_size, observation_size]
-            output shape: [batch_size, num_actions]
+            output shape: [batch_size, action_size]
         optimizer: tf.solver.*
             optimizer for prediction error
         session: tf.Session
             session on which to execute the computation
-        random_action_probability: float (0 to 1)
+        exploration_sigma: float (0 to 1)
         exploration_period: int
             probability of choosing a random
             action (epsilon form paper) annealed linearly
-            from 1 to random_action_probability over
+            from 1 to exploration_sigma over
             exploration_period
         store_every_nth: int
             to further decorrelate samples do not all
@@ -67,33 +68,39 @@ class DiscreteDeepQ(object):
             how much we care about future rewards.
         max_experience: int
             maximum size of the reply buffer
-        target_network_update_rate: float
-            how much to update target network after each
-            iteration. Let's call target_network_update_rate
+        target_actor_update_rate: float
+            how much to update target critci after each
+            iteration. Let's call target_critic_update_rate
             alpha, target network T, and network N. Every
             time N gets updated we execute:
                 T = (1-alpha)*T + alpha*N
+        target_critic_update_rate: float
+            analogous to target_actor_update_rate, but for
+            target_critic
         summary_writer: tf.train.SummaryWriter
             writer to log metrics
         """
         # memorize arguments
         self.observation_size          = observation_size
-        self.num_actions               = num_actions
+        self.action_size               = action_size
 
         self.actor                     = actor
         self.critic                    = critic
         self.optimizer                 = optimizer
         self.s                         = session
 
-        self.random_action_probability = random_action_probability
+        self.exploration_sigma = exploration_sigma
         self.exploration_period        = exploration_period
         self.store_every_nth           = store_every_nth
         self.train_every_nth           = train_every_nth
         self.minibatch_size            = minibatch_size
         self.discount_rate             = tf.constant(discount_rate)
         self.max_experience            = max_experience
-        self.target_network_update_rate = \
-                tf.constant(target_network_update_rate)
+
+        self.target_actor_update_rate = \
+                tf.constant(target_actor_update_rate)
+        self.target_critic_update_rate = \
+                tf.constant(target_critic_update_rate)
 
         # deepq state
         self.actions_executed_so_far = 0
@@ -107,7 +114,8 @@ class DiscreteDeepQ(object):
 
         self.create_variables()
 
-    def linear_annealing(self, n, total, p_initial, p_final):
+    @staticmethod
+    def linear_annealing(n, total, p_initial, p_final):
         """Linear annealing between p_initial and p_final
         over total steps - computes value at step n"""
         if n >= total:
@@ -115,70 +123,94 @@ class DiscreteDeepQ(object):
         else:
             return p_initial - (n * (p_initial - p_final)) / (total)
 
+    @staticmethod
+    def update_target_network(source_network, target_network, update_rate):
+        target_network_update = []
+        for v_source, v_target in zip(source_network.variables(), target_network.variables()):
+            # this is equivalent to target = (1-alpha) * target + alpha * source
+            update_op = v_target.assign_sub(update_rate * (v_target - v_source))
+            target_network_update.append(update_op)
+        return tf.group(*target_network_update)
+
     def create_variables(self):
-        self.target_q_network    = self.q_network.copy(scope="target_network")
+        self.target_actor  = self.actor.copy(scope="target_actor")
+        self.target_critic = self.critic.copy(scope="target_critic")
 
         # FOR REGULAR ACTION SCORE COMPUTATION
         with tf.name_scope("taking_action"):
-            self.observation        = tf.placeholder(tf.float32, (None, self.observation_size), name="observation")
-            self.action_scores      = tf.identity(self.q_network(self.observation), name="action_scores")
-            tf.histogram_summary("action_scores", self.action_scores)
-            self.predicted_actions  = tf.argmax(self.action_scores, dimension=1, name="predicted_actions")
+            self.observation  = tf.placeholder(tf.float32, (None, self.observation_size), name="observation")
+            self.actor_action = tf.identity(self.actor(self.observation), name="action_scores")
+            tf.histogram_summary("actions", self.actor_action)
 
-        with tf.name_scope("estimating_future_rewards"):
-            # FOR PREDICTING TARGET FUTURE REWARDS
+        # FOR PREDICTING TARGET FUTURE REWARDS
+        with tf.name_scope("estimating_future_reward"):
             self.next_observation          = tf.placeholder(tf.float32, (None, self.observation_size), name="next_observation")
             self.next_observation_mask     = tf.placeholder(tf.float32, (None,), name="next_observation_mask")
-            self.next_action_scores        = tf.stop_gradient(self.target_q_network(self.next_observation))
-            tf.histogram_summary("target_action_scores", self.next_action_scores)
+            self.next_action               = tf.stop_gradient(self.target_actor(self.next_observation))
+            tf.histogram_summary("target_actions", self.next_action)
+            self.next_value                = tf.stop_gradient(self.target_critic([self.next_observation, self.next_action]))
             self.rewards                   = tf.placeholder(tf.float32, (None,), name="rewards")
-            target_values                  = tf.reduce_max(self.next_action_scores, reduction_indices=[1,]) * self.next_observation_mask
-            self.future_rewards            = self.rewards + self.discount_rate * target_values
+            self.future_reward             = self.rewards + self.discount_rate * self.next_value
 
-        with tf.name_scope("q_value_precition"):
-            # FOR PREDICTION ERROR
-            self.action_mask                = tf.placeholder(tf.float32, (None, self.num_actions), name="action_mask")
-            self.masked_action_scores       = tf.reduce_sum(self.action_scores * self.action_mask, reduction_indices=[1,])
-            temp_diff                       = self.masked_action_scores - self.future_rewards
-            self.prediction_error           = tf.reduce_mean(tf.square(temp_diff))
-            gradients                       = self.optimizer.compute_gradients(self.prediction_error)
+        with tf.name_scope("critic_update"):
+            ##### ERROR FUNCTION #####
+            self.given_action               = tf.placeholder(tf.float32, (None, self.action_size), name="action_mask")
+            self.value_given_action         = self.critic([self.observation, self.given_action])
+            temp_diff                       = self.value_given_action - self.future_reward
+            self.critic_error               = tf.reduce_mean(tf.square(temp_diff))
+            ##### OPTIMIZATION #####
+            gradients                       = self.optimizer.compute_gradients(self.critic_error)
             # Add histograms for gradients.
             for grad, var in gradients:
-                tf.histogram_summary(var.name, var)
+                tf.histogram_summary('critic_update/' + var.name, var)
                 if grad:
-                    tf.histogram_summary(var.name + '/gradients', grad)
-            self.train_op                   = self.optimizer.apply_gradients(gradients)
+                    tf.histogram_summary('critic_update/' + var.name + '/gradients', grad)
+            self.critic_update              = self.optimizer.apply_gradients(gradients)
+            tf.scalar_summary("critic_error", self.critic_error)
+
+        with tf.name_scope("actor_update"):
+            ##### ERROR FUNCTION #####
+            self.actor_score = self.critic([self.observation, self.actor_action])
+
+            ##### OPTIMIZATION #####
+            # here we are maximizing actor score.
+            # only optimize actor variables here, while keeping critic constant
+            gradients = self.optimizer.compute_gradients(tf.reduce_mean(-self.actor_score), var_list=self.actor.variables())
+            # Add histograms for gradients.
+            for grad, var in gradients:
+                tf.histogram_summary('actor_update/' + var.name, var)
+                if grad:
+                    tf.histogram_summary('actor_update/' + var.name + '/gradients', grad)
+            self.actor_update              = self.optimizer.apply_gradients(gradients)
+            tf.scalar_summary("actor_score", tf.reduce_mean(self.actor_score))
 
         # UPDATE TARGET NETWORK
         with tf.name_scope("target_network_update"):
-            self.target_network_update = []
-            for v_source, v_target in zip(self.q_network.variables(), self.target_q_network.variables()):
-                # this is equivalent to target = (1-alpha) * target + alpha * source
-                update_op = v_target.assign_sub(self.target_network_update_rate * (v_target - v_source))
-                self.target_network_update.append(update_op)
-            self.target_network_update = tf.group(*self.target_network_update)
-
-        # summaries
-        tf.scalar_summary("prediction_error", self.prediction_error)
+            self.update_actor  = ContinuousDeepQ.update_target_network(self.actor, self.target_actor, self.target_actor_update_rate)
+            self.update_critic = ContinuousDeepQ.update_target_network(self.critic, self.target_critic, self.target_critic_update_rate)
+            self.target_network_update = tf.group(self.update_actor, self.update_critic)
 
         self.summarize = tf.merge_all_summaries()
+        self.no_op1 = tf.no_op()
 
-    def action(self, observation):
+    def action(self, observation, disable_exploration=False):
         """Given observation returns the action that should be chosen using
         DeepQ learning strategy. Does not backprop."""
         assert len(observation.shape) == 1, \
                 "Action is performed based on single observation."
 
         self.actions_executed_so_far += 1
-        exploration_p = self.linear_annealing(self.actions_executed_so_far,
-                                              self.exploration_period,
-                                              1.0,
-                                              self.random_action_probability)
+        noise_sigma = ContinuousDeepQ.linear_annealing(self.actions_executed_so_far,
+                                                       self.exploration_period,
+                                                       1.0,
+                                                       self.exploration_sigma)
 
-        if random.random() < exploration_p:
-            return random.randint(0, self.num_actions - 1)
-        else:
-            return self.s.run(self.predicted_actions, {self.observation: observation[np.newaxis,:]})[0]
+        action = self.s.run(self.actor_action, {self.observation: observation[np.newaxis,:]})[0]
+        if not disable_exploration:
+            action += np.random.normal(0, 1, size=action.shape)
+            action = np.clip(action, -1., 1.)
+
+        return action
 
     def store(self, observation, action, reward, newobservation):
         """Store experience, where starting with observation and
@@ -208,32 +240,31 @@ class DiscreteDeepQ(object):
             # bach states
             states         = np.empty((len(samples), self.observation_size))
             newstates      = np.empty((len(samples), self.observation_size))
-            action_mask    = np.zeros((len(samples), self.num_actions))
+            actions        = np.zeros((len(samples), self.action_size))
 
             newstates_mask = np.empty((len(samples),))
             rewards        = np.empty((len(samples),))
 
             for i, (state, action, reward, newstate) in enumerate(samples):
                 states[i] = state
-                action_mask[i] = 0
-                action_mask[i][action] = 1
+                actions[i] = action
                 rewards[i] = reward
                 if newstate is not None:
-                    newstates[i] = state
+                    newstates[i] = newstate
                     newstates_mask[i] = 1
                 else:
                     newstates[i] = 0
                     newstates_mask[i] = 0
 
-            cost, _, summary_str = self.s.run([
-                self.prediction_error,
-                self.train_op,
-                self.summarize if self.iteration % 100 == 0 else tf.no_op(),
+            _, _, summary_str = self.s.run([
+                self.actor_update,
+                self.critic_update,
+                self.summarize if self.iteration % 100 == 0 else self.no_op1,
             ], {
                 self.observation:            states,
                 self.next_observation:       newstates,
                 self.next_observation_mask:  newstates_mask,
-                self.action_mask:            action_mask,
+                self.given_action:           actions,
                 self.rewards:                rewards,
             })
 

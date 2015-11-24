@@ -3,6 +3,9 @@ import numpy as np
 import tf_rl.utils.svg as svg
 
 class DoublePendulum(object):
+    observation_size = 4
+    action_size      = 1
+    
     def __init__(self, params):
         """Double Pendulum simulation, where control is
         only applied to joint1.
