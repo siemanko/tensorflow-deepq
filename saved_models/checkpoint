@@ -1,0 +1,2 @@
+model_checkpoint_path: "../saved_models/karpathy_game.ckpt"
+all_model_checkpoint_paths: "../saved_models/karpathy_game.ckpt"
