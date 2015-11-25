@@ -1,3 +1,4 @@
+import math
 import numpy as np
 
 import tf_rl.utils.svg as svg
@@ -5,7 +6,7 @@ import tf_rl.utils.svg as svg
 class DoublePendulum(object):
     observation_size = 4
     action_size      = 1
-    
+
     def __init__(self, params):
         """Double Pendulum simulation, where control is
         only applied to joint1.
@@ -104,8 +105,11 @@ class DoublePendulum(object):
 
     def collect_reward(self):
         """Reward corresponds to how high is the first joint."""
-        _, joint2 = self.joint_positions()
-        return -joint2[1]
+        _, (x,y) = self.joint_positions()
+        total_length = self.params['l1_m'] + self.params['l2_m']
+        target_x, target_y = 0, -total_length
+        distance_to_target = math.sqrt((x-target_x)**2 + (y-target_y)**2)
+        return -distance_to_target / (2.0 * total_length)
 
     def joint_positions(self):
         """Returns abosolute positions of both joints in coordinate system

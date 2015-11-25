@@ -150,12 +150,13 @@ class ContinuousDeepQ(object):
             tf.histogram_summary("target_actions", self.next_action)
             self.next_value                = tf.stop_gradient(self.target_critic([self.next_observation, self.next_action]))
             self.rewards                   = tf.placeholder(tf.float32, (None,), name="rewards")
-            self.future_reward             = self.rewards + self.discount_rate * self.next_value
+            self.future_reward             = self.rewards + self.discount_rate *  self.next_observation_mask * self.next_value
 
         with tf.name_scope("critic_update"):
             ##### ERROR FUNCTION #####
-            self.given_action               = tf.placeholder(tf.float32, (None, self.action_size), name="action_mask")
+            self.given_action               = tf.placeholder(tf.float32, (None, self.action_size), name="given_action")
             self.value_given_action         = self.critic([self.observation, self.given_action])
+            tf.scalar_summary("action_value", tf.reduce_mean(self.value_given_action))
             temp_diff                       = self.value_given_action - self.future_reward
             self.critic_error               = tf.reduce_mean(tf.square(temp_diff))
             ##### OPTIMIZATION #####
@@ -207,7 +208,7 @@ class ContinuousDeepQ(object):
 
         action = self.s.run(self.actor_action, {self.observation: observation[np.newaxis,:]})[0]
         if not disable_exploration:
-            action += np.random.normal(0, 1, size=action.shape)
+            action += np.random.normal(0, noise_sigma, size=action.shape)
             action = np.clip(action, -1., 1.)
 
         return action

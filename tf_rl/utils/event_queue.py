@@ -41,12 +41,14 @@ class EventQueue(object):
         self.stats = defaultdict(lambda: 0)
         self.running_since = time.time()
         self.running_until = None
+        self.spare_time    = 0
         try:
             while run_for is None or (time.time() - self.running_since) < run_for:
                 event = self.q.get()
                 now = time.time()
                 arrived_on_time = False
                 if now < event.ts:
+                    self.spare_time += (event.ts - now)
                     time.sleep(event.ts - now)
                     arrived_on_time = True
                 if arrived_on_time or not event.can_skip:
@@ -61,5 +63,7 @@ class EventQueue(object):
 
     def statistics_str(self):
         total_time    = (self.running_until or time.time()) - self.running_since
-        return ', '.join(['%s: %.1f / s' % (name, float(occurences) / total_time)
+        executions = ', '.join(['%s: %.1f / s' % (name, float(occurences) / total_time)
                           for name, occurences in self.stats.items()])
+        spare_time = '(spare time: %.1f %% )' % (100.0 * self.spare_time / total_time)
+        return [executions, spare_time]
