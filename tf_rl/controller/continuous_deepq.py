@@ -89,7 +89,7 @@ class ContinuousDeepQ(object):
         self.optimizer                 = optimizer
         self.s                         = session
 
-        self.exploration_sigma = exploration_sigma
+        self.exploration_sigma         = exploration_sigma
         self.exploration_period        = exploration_period
         self.store_every_nth           = store_every_nth
         self.train_every_nth           = train_every_nth
@@ -102,6 +102,8 @@ class ContinuousDeepQ(object):
         self.target_critic_update_rate = \
                 tf.constant(target_critic_update_rate)
 
+
+        self.critic_weight_decay = tf.constant(0.01)
         # deepq state
         self.actions_executed_so_far = 0
         self.experience = deque()
@@ -139,7 +141,7 @@ class ContinuousDeepQ(object):
         # FOR REGULAR ACTION SCORE COMPUTATION
         with tf.name_scope("taking_action"):
             self.observation  = tf.placeholder(tf.float32, (None, self.observation_size), name="observation")
-            self.actor_action = tf.identity(self.actor(self.observation), name="action_scores")
+            self.actor_action = tf.identity(self.actor(self.observation), name="actor_action")
             tf.histogram_summary("actions", self.actor_action)
 
         # FOR PREDICTING TARGET FUTURE REWARDS
@@ -156,17 +158,20 @@ class ContinuousDeepQ(object):
             ##### ERROR FUNCTION #####
             self.given_action               = tf.placeholder(tf.float32, (None, self.action_size), name="given_action")
             self.value_given_action         = self.critic([self.observation, self.given_action])
-            tf.scalar_summary("action_value", tf.reduce_mean(self.value_given_action))
+            tf.scalar_summary("value_for_given_action", tf.reduce_mean(self.value_given_action))
             temp_diff                       = self.value_given_action - self.future_reward
-            self.critic_error               = tf.reduce_mean(tf.square(temp_diff))
+
+            critic_weight_regularization = sum([tf.reduce_sum(tf.square(var)) for var in self.critic.variables()])
+            self.critic_error               = tf.reduce_mean(tf.square(temp_diff)) + self.critic_weight_decay * critic_weight_regularization
+            tf.scalar_summary("critic_update/weight_regularization_error", critic_weight_regularization)
             ##### OPTIMIZATION #####
-            gradients                       = self.optimizer.compute_gradients(self.critic_error)
+            critic_gradients                       = self.optimizer.compute_gradients(self.critic_error, var_list=self.critic.variables())
             # Add histograms for gradients.
-            for grad, var in gradients:
+            for grad, var in critic_gradients:
                 tf.histogram_summary('critic_update/' + var.name, var)
                 if grad:
                     tf.histogram_summary('critic_update/' + var.name + '/gradients', grad)
-            self.critic_update              = self.optimizer.apply_gradients(gradients)
+            self.critic_update              = self.optimizer.apply_gradients(critic_gradients)
             tf.scalar_summary("critic_error", self.critic_error)
 
         with tf.name_scope("actor_update"):
@@ -176,20 +181,20 @@ class ContinuousDeepQ(object):
             ##### OPTIMIZATION #####
             # here we are maximizing actor score.
             # only optimize actor variables here, while keeping critic constant
-            gradients = self.optimizer.compute_gradients(tf.reduce_mean(-self.actor_score), var_list=self.actor.variables())
+            actor_gradients = self.optimizer.compute_gradients(tf.reduce_mean(-self.actor_score), var_list=self.actor.variables())
             # Add histograms for gradients.
-            for grad, var in gradients:
+            for grad, var in actor_gradients:
                 tf.histogram_summary('actor_update/' + var.name, var)
                 if grad:
                     tf.histogram_summary('actor_update/' + var.name + '/gradients', grad)
-            self.actor_update              = self.optimizer.apply_gradients(gradients)
+            self.actor_update              = self.optimizer.apply_gradients(actor_gradients)
             tf.scalar_summary("actor_score", tf.reduce_mean(self.actor_score))
 
         # UPDATE TARGET NETWORK
         with tf.name_scope("target_network_update"):
-            self.update_actor  = ContinuousDeepQ.update_target_network(self.actor, self.target_actor, self.target_actor_update_rate)
-            self.update_critic = ContinuousDeepQ.update_target_network(self.critic, self.target_critic, self.target_critic_update_rate)
-            self.target_network_update = tf.group(self.update_actor, self.update_critic)
+            self.target_actor_update  = ContinuousDeepQ.update_target_network(self.actor, self.target_actor, self.target_actor_update_rate)
+            self.target_critic_update = ContinuousDeepQ.update_target_network(self.critic, self.target_critic, self.target_critic_update_rate)
+            self.update_all_targets = tf.group(self.target_actor_update, self.target_critic_update)
 
         self.summarize = tf.merge_all_summaries()
         self.no_op1 = tf.no_op()
@@ -234,7 +239,7 @@ class ContinuousDeepQ(object):
             if len(self.experience) <  self.minibatch_size:
                 return
 
-            # sample experience.
+            # sample experience (need to be a twoliner, because deque...)
             samples   = random.sample(range(len(self.experience)), self.minibatch_size)
             samples   = [self.experience[i] for i in samples]
 
@@ -252,10 +257,10 @@ class ContinuousDeepQ(object):
                 rewards[i] = reward
                 if newstate is not None:
                     newstates[i] = newstate
-                    newstates_mask[i] = 1
+                    newstates_mask[i] = 1.
                 else:
                     newstates[i] = 0
-                    newstates_mask[i] = 0
+                    newstates_mask[i] = 0.
 
             _, _, summary_str = self.s.run([
                 self.actor_update,
@@ -269,7 +274,7 @@ class ContinuousDeepQ(object):
                 self.rewards:                rewards,
             })
 
-            self.s.run(self.target_network_update)
+            self.s.run(self.update_all_targets)
 
             if self.summary_writer is not None and summary_str is not None:
                 self.summary_writer.add_summary(summary_str, self.iteration)
