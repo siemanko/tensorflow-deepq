@@ -28,7 +28,7 @@ class Layer(object):
         if type(xs) != list:
             xs = [xs]
         assert len(xs) == len(self.Ws), \
-                "Expected %d input vectors, got %d" % (len(self.Ws), len(x))
+                "Expected %d input vectors, got %d" % (len(self.Ws), len(xs))
         with tf.variable_scope(self.scope):
             return sum([tf.matmul(x, W) for x, W in zip(xs, self.Ws)]) + self.b
 
