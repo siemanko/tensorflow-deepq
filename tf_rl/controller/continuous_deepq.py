@@ -102,8 +102,6 @@ class ContinuousDeepQ(object):
         self.target_critic_update_rate = \
                 tf.constant(target_critic_update_rate)
 
-
-        self.critic_weight_decay = tf.constant(0.01)
         # deepq state
         self.actions_executed_so_far = 0
         self.experience = deque()
@@ -148,9 +146,9 @@ class ContinuousDeepQ(object):
         with tf.name_scope("estimating_future_reward"):
             self.next_observation          = tf.placeholder(tf.float32, (None, self.observation_size), name="next_observation")
             self.next_observation_mask     = tf.placeholder(tf.float32, (None,), name="next_observation_mask")
-            self.next_action               = tf.stop_gradient(self.target_actor(self.next_observation))
+            self.next_action               = self.target_actor(self.next_observation) # ST
             tf.histogram_summary("target_actions", self.next_action)
-            self.next_value                = tf.stop_gradient(self.target_critic([self.next_observation, self.next_action]))
+            self.next_value                = self.target_critic([self.next_observation, self.next_action]) # ST
             self.rewards                   = tf.placeholder(tf.float32, (None,), name="rewards")
             self.future_reward             = self.rewards + self.discount_rate *  self.next_observation_mask * self.next_value
 
@@ -161,9 +159,7 @@ class ContinuousDeepQ(object):
             tf.scalar_summary("value_for_given_action", tf.reduce_mean(self.value_given_action))
             temp_diff                       = self.value_given_action - self.future_reward
 
-            critic_weight_regularization = sum([tf.reduce_sum(tf.square(var)) for var in self.critic.variables()])
-            self.critic_error               = tf.reduce_mean(tf.square(temp_diff)) + self.critic_weight_decay * critic_weight_regularization
-            tf.scalar_summary("critic_update/weight_regularization_error", critic_weight_regularization)
+            self.critic_error               = tf.reduce_mean(tf.square(temp_diff))
             ##### OPTIMIZATION #####
             critic_gradients                       = self.optimizer.compute_gradients(self.critic_error, var_list=self.critic.variables())
             # Add histograms for gradients.
