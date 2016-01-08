@@ -1,4 +1,5 @@
 # Reinforcement Learning using Tensor Flow
+<b> For all of you smarty pants, who discovered the "continuous" branch of my repo: it is not yet functional, I never got it to coverge and it probably has a software bug. If you want to play around with it you are welcome, but be prepared to do some serious debugging. If you do get it to work though, definitely let me know! ;-) I'll probably get back to fixing it some time in February / March.</b>
 
 ## Quick start
 
