@@ -87,6 +87,9 @@ class KarpathyGame(object):
 
         self.objects_eaten = defaultdict(lambda: 0)
 
+        self.game_time_passed = 0.0
+        self.events           = [] if self.settings["log_events"] else None
+
     def perform_action(self, action_id):
         """Change speed to one of hero vectors"""
         assert 0 <= action_id < self.num_actions
@@ -110,6 +113,7 @@ class KarpathyGame(object):
         Also resolve collisions with the hero"""
         for obj in self.objects + [self.hero] :
             obj.step(dt)
+        self.game_time_passed += dt
         self.resolve_collisions()
 
     def squared_distance(self, p1, p2):
@@ -128,6 +132,8 @@ class KarpathyGame(object):
             self.objects_eaten[obj.obj_type] += 1
             self.object_reward += self.settings["object_reward"][obj.obj_type]
             self.spawn_object(obj.obj_type)
+            if self.events is not None:
+                self.events.append((self.game_time_passed, ("ATE", obj.obj_type)))
 
     def inside_walls(self, point):
         """Check if the point is inside the walls"""
@@ -260,27 +266,30 @@ class KarpathyGame(object):
     def _repr_html_(self):
         return self.to_html()
 
-    def to_html(self, stats=[]):
+    def to_html(self, stats=[], silent=False, hero=True):
         """Return svg representation of the simulator"""
 
         stats = stats[:]
         recent_reward = self.collected_rewards[-100:] + [0]
         objects_eaten_str = ', '.join(["%s: %s" % (o,c) for o,c in self.objects_eaten.items()])
-        stats.extend([
-            "nearest wall = %.1f" % (self.distance_to_walls(),),
-            "reward       = %.1f" % (sum(recent_reward)/len(recent_reward),),
-            "objects eaten => %s" % (objects_eaten_str,),
-        ])
+        if not silent:
+            stats.extend([
+                "nearest wall = %.1f" % (self.distance_to_walls(),),
+                "reward       = %.1f" % (sum(recent_reward)/len(recent_reward),),
+                "objects eaten => %s" % (objects_eaten_str,),
+            ])
 
         scene = svg.Scene((self.size[0] + 20, self.size[1] + 20 + 20 * len(stats)))
         scene.add(svg.Rectangle((10, 10), self.size))
 
 
-        for line in self.observation_lines:
-            scene.add(svg.Line(line.p1 + self.hero.position + Point2(10,10),
-                               line.p2 + self.hero.position + Point2(10,10)))
+        if hero:
+            for line in self.observation_lines:
+                scene.add(svg.Line(line.p1 + self.hero.position + Point2(10,10),
+                                   line.p2 + self.hero.position + Point2(10,10)))
+            scene.add(self.hero.draw())
 
-        for obj in self.objects + [self.hero] :
+        for obj in self.objects:
             scene.add(obj.draw())
 
         offset = self.size[1] + 15
@@ -289,4 +298,3 @@ class KarpathyGame(object):
             offset += 20
 
         return scene
-

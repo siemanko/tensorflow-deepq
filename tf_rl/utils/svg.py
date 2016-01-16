@@ -19,11 +19,14 @@ def colorstr(rgb):
         return rgb
 
 def compute_style(style):
-    color = style.get("color")
     style_str = []
-    if color is None:
-        color="none"
-    style_str.append('fill:%s;' % (colorstr(color),))
+    color = style.get("color", "none")
+    if color is not None:
+        style_str.append('fill:%s' % (colorstr(color),))
+    stroke = style.get("stroke")
+    if stroke is not None:
+        style_str.append('stroke:%s' % (colorstr(stroke),))
+
 
     style_str = 'style="%s"' % (';'.join(style_str),)
     return style_str
@@ -36,10 +39,18 @@ class Scene:
     def add(self,item):
         self.items.append(item)
 
+    def prepend(self,item):
+        self.items = [item] + self.items
+
     def strarray(self):
         var = [
             "<?xml version=\"1.0\"?>\n",
-           "<svg height=\"%d\" width=\"%d\" >\n" % (self.size[1],self.size[0]),
+           "<svg height=\"%d\" width=\"%d\" >\n" % (self.size[1], self.size[0]),
+           "  <defs> ",
+           '    <marker id="arrow" markerWidth="10" markerHeight="10" refx="0" refy="3" orient="auto" markerUnits="strokeWidth" >',
+           '      <path d="M0,0 L0,6 L9,3 z" fill="#000" />',
+           "    </marker>",
+           "  </defs>",
            " <g style=\"fill-opacity:1.0; stroke:black;\n",
            "  stroke-width:1;\">\n"
         ]
@@ -54,13 +65,18 @@ class Scene:
         return '\n'.join(self.strarray())
 
 class Line:
-    def __init__(self,start,end):
-        self.start = start #xy tuple
-        self.end = end     #xy tuple
+    def __init__(self,start,end, arrow=False, **style_kwargs):
+        self.start = start   #xy tuple
+        self.end   = end     #xy tuple
+        self.arrow = arrow
+        self.style_kwargs = style_kwargs
 
     def strarray(self):
-        return ["  <line x1=\"%d\" y1=\"%d\" x2=\"%d\" y2=\"%d\" />\n" %\
-                (self.start[0],self.start[1],self.end[0],self.end[1])]
+        style_str = compute_style(self.style_kwargs)
+
+        maybe_arrow = 'marker-end="url(#arrow)" ' if self.arrow else ''
+        return ["  <line x1=\"%d\" y1=\"%d\" x2=\"%d\" y2=\"%d\" %s %s/>\n" %\
+                (self.start[0],self.start[1],self.end[0],self.end[1], maybe_arrow, style_str)]
 
 
 class Circle:

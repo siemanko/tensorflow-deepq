@@ -13,7 +13,8 @@ def simulate(simulation,
              action_every=1,
              simulation_resolution=None,
              wait=False,
-             disable_training=False,
+             training=True,
+             max_frames=None,
              save_path=None):
     """Start the simulation. Performs three tasks
 
@@ -40,8 +41,10 @@ def simulate(simulation,
     wait: boolean
         whether to intentionally slow down the simulation
         to appear real time.
-    disable_training: bool
-        if true training_step is never called.
+    training: bool
+        if false training_step is never called.
+    max_frames: int
+        stop after this many frames
     save_path: str
         save svg visualization (only tl_rl.utils.svg
         supported for the moment)
@@ -69,7 +72,8 @@ def simulate(simulation,
 
     simulation_started_time = time.time()
 
-    for frame_no in count():
+    frame_iterator = count() if max_frames is None else range(max_frames)
+    for frame_no in frame_iterator:
         for _ in range(chunks_per_frame):
             simulation.step(chunk_length_s)
 
@@ -85,7 +89,7 @@ def simulate(simulation,
             simulation.perform_action(new_action)
 
             #train
-            if not disable_training:
+            if training:
                 controller.training_step()
 
             # update current state as last state.

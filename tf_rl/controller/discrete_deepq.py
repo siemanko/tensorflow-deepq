@@ -76,7 +76,8 @@ class DiscreteDeepQ(object):
             writer to log metrics
         """
         # memorize arguments
-        self.observation_size          = observation_size
+        self.observation_size          = observation_size if type(observation_size) in [tuple, list] else [observation_size,]
+        self.observation_size          = list(self.observation_size)
         self.num_actions               = num_actions
 
         self.q_network                 = observation_to_actions
@@ -118,14 +119,14 @@ class DiscreteDeepQ(object):
 
         # FOR REGULAR ACTION SCORE COMPUTATION
         with tf.name_scope("taking_action"):
-            self.observation        = tf.placeholder(tf.float32, (None, self.observation_size), name="observation")
+            self.observation        = tf.placeholder(tf.float32, [None,] + self.observation_size, name="observation")
             self.action_scores      = tf.identity(self.q_network(self.observation), name="action_scores")
             tf.histogram_summary("action_scores", self.action_scores)
             self.predicted_actions  = tf.argmax(self.action_scores, dimension=1, name="predicted_actions")
 
         with tf.name_scope("estimating_future_rewards"):
             # FOR PREDICTING TARGET FUTURE REWARDS
-            self.next_observation          = tf.placeholder(tf.float32, (None, self.observation_size), name="next_observation")
+            self.next_observation          = tf.placeholder(tf.float32, [None,] + self.observation_size, name="next_observation")
             self.next_observation_mask     = tf.placeholder(tf.float32, (None,), name="next_observation_mask")
             self.next_action_scores        = tf.stop_gradient(self.target_q_network(self.next_observation))
             tf.histogram_summary("target_action_scores", self.next_action_scores)
@@ -165,11 +166,12 @@ class DiscreteDeepQ(object):
         self.summarize = tf.merge_all_summaries()
         self.no_op1    = tf.no_op()
 
-    def action(self, observation):
+    def action(self, observation, exploration=True):
         """Given observation returns the action that should be chosen using
         DeepQ learning strategy. Does not backprop."""
-        assert len(observation.shape) == 1, \
-                "Action is performed based on single observation."
+        assert observation.shape == tuple(self.observation_size), \
+                ("Action is performed based on single observation." +
+                 "Got %s expected %s." % (observation.shape, tuple(self.observation_size)))
 
         self.actions_executed_so_far += 1
         exploration_p = self.linear_annealing(self.actions_executed_so_far,
@@ -177,7 +179,7 @@ class DiscreteDeepQ(object):
                                               1.0,
                                               self.random_action_probability)
 
-        if random.random() < exploration_p:
+        if exploration and random.random() < exploration_p:
             return random.randint(0, self.num_actions - 1)
         else:
             return self.s.run(self.predicted_actions, {self.observation: observation[np.newaxis,:]})[0]
@@ -208,8 +210,8 @@ class DiscreteDeepQ(object):
             samples   = [self.experience[i] for i in samples]
 
             # bach states
-            states         = np.empty((len(samples), self.observation_size))
-            newstates      = np.empty((len(samples), self.observation_size))
+            states         = np.empty([len(samples)] + self.observation_size)
+            newstates      = np.empty([len(samples)] + self.observation_size)
             action_mask    = np.zeros((len(samples), self.num_actions))
 
             newstates_mask = np.empty((len(samples),))
