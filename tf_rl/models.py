@@ -129,9 +129,10 @@ class MLP(object):
     def copy(self, scope=None):
         scope = scope or self.scope + "_copy"
         nonlinearities = [self.input_nonlinearity] + self.layer_nonlinearities
-        given_layers = [self.input_layer.copy()] + [layer.copy() for layer in self.layers]
-        return MLP(self.input_sizes, self.hiddens, nonlinearities, scope=scope,
-                given_layers=given_layers)
+        with tf.variable_scope(scope):
+            given_layers = [self.input_layer.copy()] + [layer.copy() for layer in self.layers]
+            return MLP(self.input_sizes, self.hiddens, nonlinearities, scope=scope,
+                    given_layers=given_layers)
 
 class ConvLayer(object):
     def __init__(self, filter_H, filter_W, in_C, out_C, nonlinearity=tf.nn.relu, stride=(1,1), scope="Convolution"):
@@ -170,7 +171,7 @@ class ConvLayer(object):
 class SequenceWrapper(object):
     def __init__(self, seq, scope=None):
         self.seq   = seq
-        self.scope = scope or "MLP"
+        self.scope = scope or "Seq"
 
     def __call__(self, x):
         with tf.variable_scope(self.scope):
@@ -187,9 +188,9 @@ class SequenceWrapper(object):
 
     def copy(self, scope=None):
         scope = scope or self.scope + "_copy"
-        new_seq = [el if type(el) is FunctionType else el.copy() for el in self.seq ]
-
-        return SequenceWrapper(new_seq)
+        with tf.variable_scope(scope):
+            new_seq = [el if type(el) is FunctionType else el.copy() for el in self.seq ]
+            return SequenceWrapper(new_seq)
 
 class LSTMLayer(object):
     def __init__(self, input_size, hidden_size, forget_bias=1.0, scope="LSTMLayer", given_layer=None):
@@ -239,4 +240,49 @@ class LSTMLayer(object):
     def copy(self, scope=None):
         if scope is None:
             scope = self.scope + "_copy"
-        return LSTMLayer(self.input_size, self.hidden_size, self.forget_bias, scope=scope, given_layer=self.layer.copy())
+        with tf.variable_scope(scope):
+            return LSTMLayer(self.input_size, self.hidden_size, self.forget_bias, scope=scope, given_layer=self.layer.copy())
+
+class MultiLSTMLayer(object):
+    def __init__(self, input_size, hidden_sizes, scope="MultiLSTMLayer", initialize=True):
+        self.input_size   = input_size
+        self.hidden_sizes = hidden_sizes if isinstance(hidden_sizes,(tuple,list)) else [hidden_sizes]
+        self.scope = scope
+
+        self.lstms = None
+        if initialize:
+            with tf.variable_scope(scope):
+                self.lstms = []
+                prev_input = input_size
+                for i, hidden_size in enumerate(hidden_sizes):
+                    self.lstms.append(LSTMLayer(prev_input, hidden_size, scope='lstm_%d' % (i,)))
+                    prev_input = hidden_size
+
+    def __call__(self, inpt, state):
+        assert len(state) == len(self.lstms)
+        outputs   = []
+        new_state = []
+        lower_inpt = inpt
+        for lstm, lstm_prev_state in zip(self.lstms, state):
+            o, s = lstm(lower_inpt, lstm_prev_state)
+            outputs.append(o)
+            new_state.append(s)
+            lower_inpt = o
+        return outputs, new_state
+
+    def initial_state(self, batch_size, dtype=tf.float32):
+        return [lstm.initial_state(batch_size, dtype=dtype) for lstm in self.lstms]
+
+    def variables(self):
+        res = []
+        for lstm in self.lstms:
+            res.extend(lstm.variables())
+        return res
+
+    def copy(self, scope=None):
+        if scope is None:
+            scope = self.scope + "_copy"
+        with tf.variable_scope(scope):
+            res = MultiLSTMLayer(self.input_size, self.hidden_sizes, scope=scope, initialize=False)
+            res.lstms = [lstm.copy() for lstm in self.lstms]
+            return res

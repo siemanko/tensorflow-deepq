@@ -114,19 +114,23 @@ class DiscreteDeepQ(object):
         else:
             return p_initial - (n * (p_initial - p_final)) / (total)
 
+    def create_observation_variable(self, name):
+        return tf.placeholder(tf.float32, [None,] + self.observation_size, name=name)
+
+
     def create_variables(self):
         self.target_q_network    = self.q_network.copy(scope="target_network")
 
         # FOR REGULAR ACTION SCORE COMPUTATION
         with tf.name_scope("taking_action"):
-            self.observation        = tf.placeholder(tf.float32, [None,] + self.observation_size, name="observation")
+            self.observation        = self.create_observation_variable("observation")
             self.action_scores      = tf.identity(self.q_network(self.observation), name="action_scores")
             tf.histogram_summary("action_scores", self.action_scores)
             self.predicted_actions  = tf.argmax(self.action_scores, dimension=1, name="predicted_actions")
 
         with tf.name_scope("estimating_future_rewards"):
             # FOR PREDICTING TARGET FUTURE REWARDS
-            self.next_observation          = tf.placeholder(tf.float32, [None,] + self.observation_size, name="next_observation")
+            self.next_observation          = self.create_observation_variable("next_observation")
             self.next_observation_mask     = tf.placeholder(tf.float32, (None,), name="next_observation_mask")
             self.next_action_scores        = tf.stop_gradient(self.target_q_network(self.next_observation))
             tf.histogram_summary("target_action_scores", self.next_action_scores)
@@ -166,12 +170,15 @@ class DiscreteDeepQ(object):
         self.summarize = tf.merge_all_summaries()
         self.no_op1    = tf.no_op()
 
-    def action(self, observation, exploration=True):
-        """Given observation returns the action that should be chosen using
-        DeepQ learning strategy. Does not backprop."""
+    def prepare_observation(self, observation):
         assert observation.shape == tuple(self.observation_size), \
                 ("Action is performed based on single observation." +
                  "Got %s expected %s." % (observation.shape, tuple(self.observation_size)))
+        return  observation[np.newaxis,:]
+
+    def action(self, observation, exploration=True):
+        """Given observation returns the action that should be chosen using
+        DeepQ learning strategy. Does not backprop."""
 
         self.actions_executed_so_far += 1
         exploration_p = self.linear_annealing(self.actions_executed_so_far,
@@ -182,7 +189,9 @@ class DiscreteDeepQ(object):
         if exploration and random.random() < exploration_p:
             return random.randint(0, self.num_actions - 1)
         else:
-            return self.s.run(self.predicted_actions, {self.observation: observation[np.newaxis,:]})[0]
+            return self.s.run(self.predicted_actions, {
+                self.observation: self.prepare_observation(observation)
+            })[0]
 
     def store(self, observation, action, reward, newobservation):
         """Store experience, where starting with observation and
@@ -197,6 +206,29 @@ class DiscreteDeepQ(object):
                 self.experience.popleft()
         self.number_of_times_store_called += 1
 
+    def batch_samples(self, samples):
+        # batch states
+        states         = np.empty([len(samples)] + self.observation_size)
+        newstates      = np.empty([len(samples)] + self.observation_size)
+        action_mask    = np.zeros((len(samples), self.num_actions))
+
+        newstates_mask = np.empty((len(samples),))
+        rewards        = np.empty((len(samples),))
+
+        for i, (state, action, reward, newstate) in enumerate(samples):
+            states[i] = state
+            action_mask[i] = 0
+            action_mask[i][action] = 1
+            rewards[i] = reward
+            if newstate is not None:
+                newstates[i] = newstate
+                newstates_mask[i] = 1
+            else:
+                newstates[i] = 0
+                newstates_mask[i] = 0
+
+        return states, action_mask, rewards, newstates, newstates_mask
+
     def training_step(self):
         """Pick a self.minibatch_size exeperiences from reply buffer
         and backpropage the value function.
@@ -209,26 +241,7 @@ class DiscreteDeepQ(object):
             samples   = random.sample(range(len(self.experience)), self.minibatch_size)
             samples   = [self.experience[i] for i in samples]
 
-            # bach states
-            states         = np.empty([len(samples)] + self.observation_size)
-            newstates      = np.empty([len(samples)] + self.observation_size)
-            action_mask    = np.zeros((len(samples), self.num_actions))
-
-            newstates_mask = np.empty((len(samples),))
-            rewards        = np.empty((len(samples),))
-
-            for i, (state, action, reward, newstate) in enumerate(samples):
-                states[i] = state
-                action_mask[i] = 0
-                action_mask[i][action] = 1
-                rewards[i] = reward
-                if newstate is not None:
-                    newstates[i] = newstate
-                    newstates_mask[i] = 1
-                else:
-                    newstates[i] = 0
-                    newstates_mask[i] = 0
-
+            states, action_mask, rewards, newstates, newstates_mask = self.batch_samples(samples)
 
             calculate_summaries = self.iteration % 100 == 0 and \
                     self.summary_writer is not None
