@@ -47,6 +47,49 @@ class Layer(object):
             sc.reuse_variables()
             return Layer(self.input_sizes, self.output_size, scope=sc)
 
+class ConcatLayer(object):
+    def __init__(self, input_sizes, output_size, scope):
+        """Cretes a neural network layer."""
+        if type(input_sizes) != list:
+            input_sizes = [input_sizes]
+
+        self.input_sizes = input_sizes
+        self.output_size = output_size
+        self.scope       = scope or "ConcatLayer"
+
+        total_input_size = sum(input_sizes)
+
+        with tf.variable_scope(self.scope):
+            W_initializer =  tf.random_uniform_initializer(
+                        -1.0 / math.sqrt(total_input_size), 1.0 / math.sqrt(total_input_size))
+            self.W = tf.get_variable("W", (total_input_size, output_size), initializer=W_initializer)
+            self.b = tf.get_variable("b", (output_size,), initializer=tf.constant_initializer(0))
+
+    def __call__(self, xs):
+        if type(xs) != list:
+            xs = [xs]
+        assert len(xs) == len(self.input_sizes), \
+                "Expected %d input vectors, got %d" % (len(self.Ws), len(xs))
+        with tf.variable_scope(self.scope):
+            print("MATMUL", [x.get_shape() for x in xs])
+            if len(xs) == 1:
+                return tf.matmul(xs[0], self.W) + self.b
+            else:
+                return tf.matmul(tf.concat(1, xs,name="layer_concat"), self.W) + self.b
+
+    def variables(self):
+        return [self.W,  self.b]
+
+    def copy(self, scope=None):
+        scope = scope or self.scope + "_copy"
+
+        with tf.variable_scope(scope) as sc:
+            for v in self.variables():
+                tf.get_variable(base_name(v), v.get_shape(),
+                        initializer=lambda x,dtype=tf.float32: v.initialized_value())
+            sc.reuse_variables()
+            return Layer(self.input_sizes, self.output_size, scope=sc)
+
 class MLP(object):
     def __init__(self, input_sizes, hiddens, nonlinearities, scope=None, given_layers=None):
         self.input_sizes = input_sizes
@@ -147,3 +190,53 @@ class SequenceWrapper(object):
         new_seq = [el if type(el) is FunctionType else el.copy() for el in self.seq ]
 
         return SequenceWrapper(new_seq)
+
+class LSTMLayer(object):
+    def __init__(self, input_size, hidden_size, forget_bias=1.0, scope="LSTMLayer", given_layer=None):
+        """Long short-term memory cell (LSTM)."""
+        self.input_size  = input_size
+        self.hidden_size = hidden_size
+        self.forget_bias = forget_bias
+
+        self.scope = scope
+        with tf.variable_scope(self.scope):
+            if given_layer is not None:
+                self.layer = given_layer
+            else:
+                self.layer = Layer([input_size, hidden_size], 4 * hidden_size, scope="lstm_layer")
+
+    def __call__(self, inpt, state, scope=None):
+        with tf.variable_scope(self.scope):
+            # Parameters of gates are concatenated into one multiply for efficiency.
+            c, h = tf.split(1, 2, state)
+
+            concat = self.layer([inpt, h])
+
+            # i = input_gate, j = new_input, f = forget_gate, o = output_gate
+            i, j, f, o = tf.split(1, 4, concat)
+
+            new_c = c * tf.nn.sigmoid(f + self.forget_bias) + tf.nn.sigmoid(i) * tf.nn.tanh(j)
+            new_h = tf.nn.tanh(new_c) * tf.nn.sigmoid(o)
+
+            return new_h, tf.concat(1, [new_c, new_h])
+
+    def variables(self):
+        return self.layer.variables()
+
+    def initial_state(self, batch_size, dtype=tf.float32):
+        """Return state tensor (shape [batch_size x state_size]) filled with 0.
+        Args:
+          batch_size: int, float, or unit Tensor representing the batch size.
+          dtype: the data type to use for the state.
+        Returns:
+          A 2D Tensor of shape [batch_size x state_size] filled with zeros.
+        """
+        zeros = tf.zeros(
+            tf.pack([batch_size, 2 * self.hidden_size]), dtype=dtype)
+        zeros.set_shape([None, 2 * self.hidden_size])
+        return zeros
+
+    def copy(self, scope=None):
+        if scope is None:
+            scope = self.scope + "_copy"
+        return LSTMLayer(self.input_size, self.hidden_size, self.forget_bias, scope=scope, given_layer=self.layer.copy())
