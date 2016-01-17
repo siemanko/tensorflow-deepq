@@ -274,3 +274,33 @@ class HeroSimulation(Simulation):
         self.draw_stats(scene, stats)
 
         return scene
+
+
+class ConvSimulation(Simulation):
+    def __init__(self, settings):
+        super(ConvSimulation, self).__init__(settings)
+        self.hero = GameObject(Point2(0.5,0.5), Vector2(0.0,0.0), "hero", radius=self.settings['obj_radius'])
+        self.add(self.hero)
+        self.observation_res  = self.settings["observation_resolution"]
+        self.observation_size = [self.observation_res, self.observation_res, len(self.settings["observable_objects"]) + 2]
+
+    def observe(self):
+        observ_obj = self.settings["observable_objects"]
+        no = len(observ_obj)
+        observation = np.zeros((self.observation_res, self.observation_res, no + 2))
+        def rescale(i):
+            return min(self.observation_res - 1, max(0, int(round(self.observation_res * i))))
+
+        for obj in self.objects:
+            cx, cy = rescale(obj.position.x), rescale(obj.position.y)
+            sx, ex = obj.position.x - obj.radius, obj.position.x + obj.radius
+            sy, ey = obj.position.y - obj.radius, obj.position.y + obj.radius
+            sx, ex, sy, ey = [ rescale(i) for i in [sx,ex,sy,ey]]
+            layer = observ_obj.index(obj.obj_type)
+            for x in range(sx, ex + 1):
+                for y in range(sy, ey + 1):
+                    if (x-cx)**2 + (y-cy)**2 <= (obj.radius*self.observation_res)**2:
+                        observation[x,y,layer]  = 1.0
+                        observation[x,y,no]     = obj.speed.x
+                        observation[x,y,no + 1] = obj.speed.y
+        return observation

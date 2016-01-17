@@ -1,6 +1,8 @@
 import math
 import tensorflow as tf
 
+from types import FunctionType
+
 from .utils import base_name
 
 
@@ -87,3 +89,61 @@ class MLP(object):
         given_layers = [self.input_layer.copy()] + [layer.copy() for layer in self.layers]
         return MLP(self.input_sizes, self.hiddens, nonlinearities, scope=scope,
                 given_layers=given_layers)
+
+class ConvLayer(object):
+    def __init__(self, filter_H, filter_W, in_C, out_C, nonlinearity=tf.nn.relu, stride=(1,1), scope="Convolution"):
+        self.filter_H, self.filter_W, self.in_C, self.out_C = filter_H, filter_W, in_C, out_C
+        self.stride       = stride
+        self.nonlinearity = nonlinearity
+        self.scope        = scope
+
+        with tf.variable_scope(self.scope):
+            input_size = filter_H * filter_W * in_C
+            W_initializer =  tf.random_uniform_initializer(
+                        -1.0 / math.sqrt(input_size), 1.0 / math.sqrt(input_size))
+            self.W = tf.get_variable('W', (filter_H, filter_W, in_C, out_C), initializer=W_initializer)
+            self.b = tf.get_variable('b', (out_C), initializer=tf.constant_initializer(0))
+
+    def __call__(self, X):
+        with tf.variable_scope(self.scope):
+            return self.nonlinearity(tf.nn.conv2d(X, self.W,  strides=[1] + list(self.stride) + [1], padding='SAME')
+                                     + self.b)
+
+    def variables(self):
+        return [self.b, self.W]
+
+    def copy(self, scope=None):
+        scope = scope or self.scope + "_copy"
+
+        with tf.variable_scope(scope) as sc:
+            for v in self.variables():
+                tf.get_variable(base_name(v), v.get_shape(),
+                        initializer=lambda x,dtype=tf.float32: v.initialized_value())
+            sc.reuse_variables()
+            return ConvLayer(self.filter_H, self.filter_W, self.in_C, self.out_C,
+                             nonlinearity=self.nonlinearity, stride=self.stride, scope=sc)
+
+
+class SequenceWrapper(object):
+    def __init__(self, seq, scope=None):
+        self.seq   = seq
+        self.scope = scope or "MLP"
+
+    def __call__(self, x):
+        with tf.variable_scope(self.scope):
+            for el in self.seq:
+                x = el(x)
+            return x
+
+    def variables(self):
+        res = []
+        for el in self.seq:
+            if hasattr(el, 'variables'):
+                res.extend(el.variables())
+        return res
+
+    def copy(self, scope=None):
+        scope = scope or self.scope + "_copy"
+        new_seq = [el if type(el) is FunctionType else el.copy() for el in self.seq ]
+
+        return SequenceWrapper(new_seq)
