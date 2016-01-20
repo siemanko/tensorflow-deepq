@@ -161,7 +161,7 @@ class HeroSimulation(Simulation):
         self.add(self.hero)
 
         self.update_observation_lines()
-        self.observation_size = len(self.observe())
+        self.observation_size = self.settings["num_observation_lines"] * (len(self.settings["observable_objects"]) + 4)
 
     def generate_observation_lines(self):
         """Generate observation segments in settings["num_observation_lines"] directions"""

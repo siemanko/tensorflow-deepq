@@ -11,3 +11,14 @@ def copy_variables(variables):
         copied_var = tf.Variable(v.initialized_value(), name=name)
         res[name] = copied_var
     return res
+
+def unpack_tf_givens(d):
+    new_dict = {}
+    for k,v in d.items():
+        if isinstance(k,(tuple, list)):
+            assert isinstance(v,(tuple,list)) and len(k) == len(v)
+            for k_inner, v_inner in zip(k,v):
+                new_dict[k_inner] = v_inner
+        else:
+            new_dict[k] = v
+    return new_dict

@@ -4,6 +4,8 @@ import tensorflow as tf
 
 from collections import deque
 
+from ..utils import unpack_tf_givens
+
 class DiscreteDeepQ(object):
     def __init__(self, observation_size,
                        num_actions,
@@ -189,9 +191,9 @@ class DiscreteDeepQ(object):
         if exploration and random.random() < exploration_p:
             return random.randint(0, self.num_actions - 1)
         else:
-            return self.s.run(self.predicted_actions, {
+            return self.s.run(self.predicted_actions, unpack_tf_givens({
                 self.observation: self.prepare_observation(observation)
-            })[0]
+            }))[0]
 
     def store(self, observation, action, reward, newobservation):
         """Store experience, where starting with observation and
@@ -250,13 +252,13 @@ class DiscreteDeepQ(object):
                 self.prediction_error,
                 self.train_op,
                 self.summarize if calculate_summaries else self.no_op1,
-            ], {
+            ], unpack_tf_givens({
                 self.observation:            states,
                 self.next_observation:       newstates,
                 self.next_observation_mask:  newstates_mask,
                 self.action_mask:            action_mask,
                 self.rewards:                rewards,
-            })
+            }))
 
             self.s.run(self.target_network_update)
 

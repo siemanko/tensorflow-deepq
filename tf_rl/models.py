@@ -286,3 +286,44 @@ class MultiLSTMLayer(object):
             res = MultiLSTMLayer(self.input_size, self.hidden_sizes, scope=scope, initialize=False)
             res.lstms = [lstm.copy() for lstm in self.lstms]
             return res
+
+
+class NLPLSTM(object):
+    def __init__(self, embedding_size, nsymbols, lstm_hiddens, scope="NLPLSTM", initialize=True):
+        self.embedding_size, self.nsymbols, self.lstm_hiddens = embedding_size, nsymbols, lstm_hiddens
+        self.scope = scope
+        self.embedding, self.lstm = None, None
+        if initialize:
+            with tf.variable_scope(self.scope):
+                embedding_i =  tf.random_uniform_initializer(- 1.0 / math.sqrt(embedding_size),
+                                                             1.0 / math.sqrt(embedding_size))
+                self.embedding = tf.get_variable('embedding', (nsymbols, embedding_size), initializer=embedding_i)
+                self.lstm = MultiLSTMLayer(embedding_size, lstm_hiddens)
+
+    def __call__(self, words):
+        embedded = tf.nn.embedding_lookup(self.embedding, words, name="embedded")
+        lstm_inputs  = [ embedded[i,:,:] for i in range(embedded.get_shape().as_list()[0])]
+
+        rnn_outputs = []
+        rnn_states = []
+        batch_size = tf.shape(lstm_inputs[0])[0]
+        state = self.lstm.initial_state(batch_size)
+        for input_ in lstm_inputs:
+            output, state = self.lstm(input_, state)
+            rnn_outputs.append(output)
+            rnn_states.append(state)
+
+        return rnn_outputs, rnn_states
+
+    def variables(self):
+        return [self.embedding] + self.lstm.variables()
+
+    def copy(self, scope=None):
+        if scope is None:
+            scope = self.scope + "_copy"
+        res = NLPLSTM(self.embedding_size, self.nsymbols, self.lstm_hiddens, scope=scope, initialize=False)
+        with tf.variable_scope(scope):
+            res.embedding = tf.get_variable(base_name(self.embedding), self.embedding.get_shape(),
+                        initializer=lambda x, dtype=tf.float32: self.embedding.initialized_value())
+            res.lstm     = self.lstm.copy()
+        return res
