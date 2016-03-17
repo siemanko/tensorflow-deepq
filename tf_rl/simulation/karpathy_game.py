@@ -79,10 +79,10 @@ class KarpathyGame(object):
         # every observation_line sees one of objects or wall and
         # two numbers representing speed of the object (if applicable)
         self.eye_observation_size = len(self.settings["objects"]) + 3
-        # additionally there are two numbers representing agents own speed.
-        self.observation_size = self.eye_observation_size * len(self.observation_lines) + 2
+        # additionally there are two numbers representing agents own speed and position.
+        self.observation_size = self.eye_observation_size * len(self.observation_lines) + 2 + 2
 
-        self.directions = [Vector2(*d) for d in [[1,0], [0,1], [-1,0],[0,-1]]]
+        self.directions = [Vector2(*d) for d in [[1,0], [0,1], [-1,0],[0,-1],[0.0,0.0]]]
         self.num_actions      = len(self.directions)
 
         self.objects_eaten = defaultdict(lambda: 0)
@@ -90,7 +90,7 @@ class KarpathyGame(object):
     def perform_action(self, action_id):
         """Change speed to one of hero vectors"""
         assert 0 <= action_id < self.num_actions
-        self.hero.speed *= 0.8
+        self.hero.speed *= 0.5
         self.hero.speed += self.directions[action_id] * self.settings["delta_v"]
 
     def spawn_object(self, obj_type):
@@ -210,6 +210,12 @@ class KarpathyGame(object):
 
         observation[observation_offset]     = self.hero.speed[0] / max_speed_x
         observation[observation_offset + 1] = self.hero.speed[1] / max_speed_y
+        observation_offset += 2
+        
+        # add normalized locaiton of the hero in environment        
+        observation[observation_offset]     = self.hero.position[0] / 350.0 - 1.0
+        observation[observation_offset + 1] = self.hero.position[1] / 250.0 - 1.0
+        
         assert observation_offset + 2 == self.observation_size
 
         return observation
