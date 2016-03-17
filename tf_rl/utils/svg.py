@@ -109,16 +109,16 @@ class Text:
 
 def test():
     scene = Scene()
-    scene.add(Rectangle((100,100),200,200,(0,255,255)))
+    scene.add(Rectangle((100,100),(200,200), **{"color":(0,255,255)} ))
     scene.add(Line((200,200),(200,300)))
     scene.add(Line((200,200),(300,200)))
     scene.add(Line((200,200),(100,200)))
     scene.add(Line((200,200),(200,100)))
-    scene.add(Circle((200,200),30,(0,0,255)))
-    scene.add(Circle((200,300),30,(0,255,0)))
-    scene.add(Circle((300,200),30,(255,0,0)))
-    scene.add(Circle((100,200),30,(255,255,0)))
-    scene.add(Circle((200,100),30,(255,0,255)))
+    scene.add(Circle((200,200),30, **{"color":(0,0,255)} ))
+    scene.add(Circle((200,300),30, **{"color":(0,255,0)} ))
+    scene.add(Circle((300,200),30, **{"color":(255,0,0)} ))
+    scene.add(Circle((100,200),30, **{"color":(255,255,0)} ))
+    scene.add(Circle((200,100),30, **{"color":(255,0,255)} ))
     scene.add(Text((50,50),"Testing SVG"))
     with open("test.svg", "w") as f:
         scene.write_svg(f)
