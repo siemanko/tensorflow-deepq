@@ -146,7 +146,7 @@ class DiscreteDeepQ(object):
             # Add histograms for gradients.
             for grad, var in gradients:
                 tf.histogram_summary(var.name, var)
-                if grad:
+                if grad is not None:
                     tf.histogram_summary(var.name + '/gradients', grad)
             self.train_op                   = self.optimizer.apply_gradients(gradients)
 
