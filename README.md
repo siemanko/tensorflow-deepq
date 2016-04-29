@@ -13,6 +13,7 @@ Check out Karpathy game in `notebooks` folder.
 
 - `future==0.15.2`
 - `euclid==0.1`
+- `inkscape` (for animation gif creation)
 
 ## How does this all fit together.
 
