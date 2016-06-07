@@ -7,7 +7,7 @@ import time
 from collections import defaultdict
 from euclid import Circle, Point2, Vector2, LineSegment2
 
-import tf_rl.utils.svg as svg
+from ..utils import svg
 
 class GameObject(object):
     def __init__(self, position, speed, obj_type, settings):
