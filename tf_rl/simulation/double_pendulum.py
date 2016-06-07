@@ -1,6 +1,6 @@
 import numpy as np
 
-import tf_rl.utils.svg as svg
+from ..utils import svg
 
 class DoublePendulum(object):
     def __init__(self, params):
