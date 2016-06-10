@@ -300,7 +300,7 @@ class KarpathyGame(object):
     def setup_draw(self):
         pass
 
-    def draw(self, stats):
+    def draw(self, stats=[]):
         clear_output(wait=True)
         svg_html = self.to_html(stats)
         display(svg_html)
