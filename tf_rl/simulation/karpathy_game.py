@@ -8,6 +8,7 @@ from collections import defaultdict
 from euclid import Circle, Point2, Vector2, LineSegment2
 
 from ..utils import svg
+from IPython.display import clear_output, display, HTML
 
 class GameObject(object):
     def __init__(self, position, speed, obj_type, settings):
@@ -296,3 +297,10 @@ class KarpathyGame(object):
 
         return scene
 
+    def setup_draw(self):
+        pass
+
+    def draw(self, stats):
+        clear_output(wait=True)
+        svg_html = self.to_html(stats)
+        display(svg_html)
