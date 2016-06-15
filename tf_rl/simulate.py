@@ -3,10 +3,11 @@ from __future__ import division
 import math
 import time
 
-from IPython.display import clear_output, display, HTML
+import matplotlib.pyplot as plt
 from itertools import count
 from os.path import join, exists
 from os import makedirs
+from IPython.display import clear_output, display, HTML
 
 def simulate(simulation,
              controller= None,
@@ -71,6 +72,10 @@ def simulate(simulation,
 
     simulation_started_time = time.time()
 
+    # setup rendering handles for reuse
+    if hasattr(simulation, 'setup_draw'): 
+        simulation.setup_draw()
+
     for frame_no in count():
         for _ in range(chunks_per_frame):
             simulation.step(chunk_length_s)
@@ -98,9 +103,16 @@ def simulate(simulation,
         # action taking.
         if (frame_no + 1) % visualize_every == 0:
             fps_estimate = frame_no / (time.time() - simulation_started_time)
-            clear_output(wait=True)
-            svg_html = simulation.to_html(["fps = %.1f" % (fps_estimate,)])
-            display(svg_html)
+
+            # draw simulated environment all the rendering is handled within the simulation object 
+            stats = ["fps = %.1f" % (fps_estimate, )]
+            if hasattr(simulation, 'draw'): # render with the draw function
+                simulation.draw(stats) 
+            elif hasattr(simulation, 'to_html'): # in case some class only support svg rendering
+                clear_output(wait=True)
+                svg_html = simulation.to_html(stats)
+                display(svg_html)
+
             if save_path is not None:
                 img_path = join(save_path, "%d.svg" % (last_image,))
                 with open(img_path, "w") as f:

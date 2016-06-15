@@ -8,6 +8,7 @@ from collections import defaultdict
 from euclid import Circle, Point2, Vector2, LineSegment2
 
 from ..utils import svg
+from IPython.display import clear_output, display, HTML
 
 class GameObject(object):
     def __init__(self, position, speed, obj_type, settings):
@@ -296,3 +297,21 @@ class KarpathyGame(object):
 
         return scene
 
+    def setup_draw(self):
+        """
+        An optional method to be triggered in simulate(...) to initialise
+        the figure handles for rendering.
+        simulate(...) will run with/without this method declared in the simulation class
+        As we are using SVG strings in KarpathyGame, it is not curently used.
+        """
+        pass
+
+    def draw(self, stats=[]):
+        """
+        An optional method to be triggered in simulate(...) to render the simulated environment.
+        It is repeatedly called in each simulated iteration.
+        simulate(...) will run with/without this method declared in the simulation class.
+        """
+        clear_output(wait=True)
+        svg_html = self.to_html(stats)
+        display(svg_html)
