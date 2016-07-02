@@ -144,8 +144,10 @@ def main():
         # assigned by openai gym and might break in the future.
         points_lost = rewards.count(-1.0)
         points_won  = rewards.count(1.0)
-        print "Game no {} is over. Points lost: {}, points won: {}".format(
-                game_no, points_lost, points_won)
+        exploartion_done = controller.exploration_completed()
+
+        print "Game no %d is over. Exploration %.1f done. Points lost: %d, points won: %d" % \
+                (game_no, 100.0 * exploartion_done, points_lost, points_won)
 
 if __name__ == '__main__':
     main()

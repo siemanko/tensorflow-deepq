@@ -195,6 +195,9 @@ class DiscreteDeepQ(object):
         else:
             return self.s.run(self.predicted_actions, {self.observation: observation[np.newaxis,:]})[0]
 
+    def exploration_completed(self):
+        return min(float(self.actions_executed_so_far) / self.exploration_period, 1.0)
+
     def store(self, observation, action, reward, newobservation):
         """Store experience, where starting with observation and
         execution action, we arrived at the newobservation and got thetarget_network_update
