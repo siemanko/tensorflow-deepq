@@ -1,11 +1,14 @@
 import numpy as np
 import random
 import tensorflow as tf
+import os
+import pickle
+import time
 
 from collections import deque
 
 class DiscreteDeepQ(object):
-    def __init__(self, observation_size,
+    def __init__(self, observation_shape,
                        num_actions,
                        observation_to_actions,
                        optimizer,
@@ -26,7 +29,7 @@ class DiscreteDeepQ(object):
 
         Parameters
         -------
-        observation_size : int
+        observation_shape : int
             length of the vector passed as observation
         num_actions : int
             number of actions that the model can execute
@@ -35,7 +38,7 @@ class DiscreteDeepQ(object):
             that can take in observation vector or a batch
             and returns scores (of unbounded values) for each
             action for each observation.
-            input shape:  [batch_size, observation_size]
+            input shape:  [batch_size] + observation_shape
             output shape: [batch_size, num_actions]
         optimizer: tf.solver.*
             optimizer for prediction error
@@ -76,7 +79,7 @@ class DiscreteDeepQ(object):
             writer to log metrics
         """
         # memorize arguments
-        self.observation_size          = observation_size
+        self.observation_shape         = observation_shape
         self.num_actions               = num_actions
 
         self.q_network                 = observation_to_actions
@@ -105,6 +108,11 @@ class DiscreteDeepQ(object):
 
         self.create_variables()
 
+        self.s.run(tf.initialize_all_variables())
+        self.s.run(self.target_network_update)
+
+        self.saver = tf.train.Saver()
+
     def linear_annealing(self, n, total, p_initial, p_final):
         """Linear annealing between p_initial and p_final
         over total steps - computes value at step n"""
@@ -113,19 +121,23 @@ class DiscreteDeepQ(object):
         else:
             return p_initial - (n * (p_initial - p_final)) / (total)
 
+
+    def observation_batch_shape(self, batch_size):
+        return tuple([batch_size] + list(self.observation_shape))
+
     def create_variables(self):
         self.target_q_network    = self.q_network.copy(scope="target_network")
 
         # FOR REGULAR ACTION SCORE COMPUTATION
         with tf.name_scope("taking_action"):
-            self.observation        = tf.placeholder(tf.float32, (None, self.observation_size), name="observation")
+            self.observation        = tf.placeholder(tf.float32, self.observation_batch_shape(None), name="observation")
             self.action_scores      = tf.identity(self.q_network(self.observation), name="action_scores")
             tf.histogram_summary("action_scores", self.action_scores)
             self.predicted_actions  = tf.argmax(self.action_scores, dimension=1, name="predicted_actions")
 
         with tf.name_scope("estimating_future_rewards"):
             # FOR PREDICTING TARGET FUTURE REWARDS
-            self.next_observation          = tf.placeholder(tf.float32, (None, self.observation_size), name="next_observation")
+            self.next_observation          = tf.placeholder(tf.float32, self.observation_batch_shape(None), name="next_observation")
             self.next_observation_mask     = tf.placeholder(tf.float32, (None,), name="next_observation_mask")
             self.next_action_scores        = tf.stop_gradient(self.target_q_network(self.next_observation))
             tf.histogram_summary("target_action_scores", self.next_action_scores)
@@ -165,10 +177,11 @@ class DiscreteDeepQ(object):
         self.summarize = tf.merge_all_summaries()
         self.no_op1    = tf.no_op()
 
+
     def action(self, observation):
         """Given observation returns the action that should be chosen using
         DeepQ learning strategy. Does not backprop."""
-        assert len(observation.shape) == 1, \
+        assert observation.shape == self.observation_shape, \
                 "Action is performed based on single observation."
 
         self.actions_executed_so_far += 1
@@ -208,8 +221,8 @@ class DiscreteDeepQ(object):
             samples   = [self.experience[i] for i in samples]
 
             # bach states
-            states         = np.empty((len(samples), self.observation_size))
-            newstates      = np.empty((len(samples), self.observation_size))
+            states         = np.empty(self.observation_batch_shape(len(samples)))
+            newstates      = np.empty(self.observation_batch_shape(len(samples)))
             action_mask    = np.zeros((len(samples), self.num_actions))
 
             newstates_mask = np.empty((len(samples),))
@@ -251,3 +264,43 @@ class DiscreteDeepQ(object):
             self.iteration += 1
 
         self.number_of_times_train_called += 1
+
+    def save(self, save_dir, debug=False):
+        STATE_FILE      = os.path.join(save_dir, 'deepq_state')
+        MODEL_FILE      = os.path.join(save_dir, 'model')
+
+        # deepq state
+        state = {
+            'actions_executed_so_far':      self.actions_executed_so_far,
+            'iteration':                    self.iteration,
+            'number_of_times_store_called': self.number_of_times_store_called,
+            'number_of_times_train_called': self.number_of_times_train_called,
+        }
+
+        if debug:
+            print 'Saving model... ',
+
+        saving_started = time.time()
+
+        self.saver.save(self.s, MODEL_FILE)
+        with open(STATE_FILE, "wb") as f:
+            pickle.dump(state, f)
+
+        print 'done in {} s'.format(time.time() - saving_started)
+
+    def restore(self, save_dir, debug=False):
+        # deepq state
+        STATE_FILE      = os.path.join(save_dir, 'deepq_state')
+        MODEL_FILE      = os.path.join(save_dir, 'model')
+
+        with open(STATE_FILE, "rb") as f:
+            state = pickle.load(f)
+        self.saver.restore(self.s, MODEL_FILE)
+
+        self.actions_executed_so_far      = state['actions_executed_so_far']
+        self.iteration                    = state['iteration']
+        self.number_of_times_store_called = state['number_of_times_store_called']
+        self.number_of_times_train_called = state['number_of_times_train_called']
+
+
+
