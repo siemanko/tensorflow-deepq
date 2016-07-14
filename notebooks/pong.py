@@ -13,10 +13,11 @@ from tf_rl.controller.discrete_deepq import DiscreteDeepQ
 REAL_TIME            = False
 RENDER               = True
 
-MODEL_SAVE_DIR       = "./pong_model/"
+ENVIRONMENT          = "Pong-v0"
+MODEL_SAVE_DIR       = "./{}-model/".format(ENVIRONMENT)
 MODEL_SAVE_EVERY_S   = 60
 
-# SESNIBLE VARIABLES
+# SENSIBLE VARIABLES
 FPS         = 60
 MAX_FRAMES  = 1000
 IMAGE_SHAPE = (210, 160, 3)
@@ -30,7 +31,7 @@ def make_model():
 
     with tf.variable_scope('convnet'):
         convnet = SeqLayer([
-            ConvLayer(3, 3,   6, 32,  stride=(1,1), scope='conv1'),    # out.shape = (B, 210, 160, 3)
+            ConvLayer(3, 3,   6, 32,  stride=(1,1), scope='conv1'),    # out.shape = (B, 210, 160, 32)
             LambdaLayer(tf.nn.sigmoid),
             ConvLayer(2, 2,  32, 64,  stride=(2,2), scope='conv2'),    # out.shape = (B, 105, 80, 64)
             LambdaLayer(tf.nn.sigmoid),
@@ -49,7 +50,7 @@ def make_model():
 
 
 def make_controller():
-    """createa deepq controller"""
+    """Create a deepq controller"""
     session    = tf.Session()
 
     model = make_model()
@@ -74,11 +75,11 @@ def make_controller():
 # people normalize their frames to sizes 80x80 and grayscale.
 # should we do this?
 def normalize_frame(o):
-    """Change from uint in range (0, 255) to float in range (0,1)"""
+    """Change from uint in range (0, 255) to float in range (0, 1)"""
     return o.astype(np.float32) / 255.0
 
 def main():
-    env        = gym.make('Pong-v0')
+    env        = gym.make(ENVIRONMENT)
     controller = make_controller()
 
     # Load existing model.
@@ -144,10 +145,10 @@ def main():
         # assigned by openai gym and might break in the future.
         points_lost = rewards.count(-1.0)
         points_won  = rewards.count(1.0)
-        exploartion_done = controller.exploration_completed()
+        exploration_done = controller.exploration_completed()
 
         print "Game no %d is over. Exploration %.1f done. Points lost: %d, points won: %d" % \
-                (game_no, 100.0 * exploartion_done, points_lost, points_won)
+                (game_no, 100.0 * exploration_done, points_lost, points_won)
 
 if __name__ == '__main__':
     main()
