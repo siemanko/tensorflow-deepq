@@ -41,7 +41,7 @@ class Layer(object):
         with tf.variable_scope(scope) as sc:
             for v in self.variables():
                 tf.get_variable(base_name(v), v.get_shape(),
-                        initializer=lambda x,dtype=tf.float32: v.initialized_value())
+                        initializer=lambda x,dtype=tf.float32,partition_info=None: v.initialized_value())
             sc.reuse_variables()
             return Layer(self.input_sizes, self.output_size, scope=sc)
 
@@ -126,7 +126,7 @@ class ConvLayer(object):
         with tf.variable_scope(scope) as sc:
             for v in self.variables():
                 tf.get_variable(base_name(v), v.get_shape(),
-                        initializer=lambda x,dtype=tf.float32: v.initialized_value())
+                        initializer=lambda x,dtype=tf.float32,partition_info=None: v.initialized_value())
             sc.reuse_variables()
             return ConvLayer(self.filter_H, self.filter_W, self.in_C, self.out_C, self.stride, scope=sc)
 
